@@ -34,7 +34,6 @@ import com.example.myvocabulary.ui.theme.MyVocabularyTheme
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VocabularyApp() {
-    var darkTheme by rememberSaveable { mutableStateOf(false) }
     var homeQuery by rememberSaveable { mutableStateOf("") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchSubject by rememberSaveable { mutableStateOf(SubjectFilter.All) }
@@ -98,7 +97,7 @@ fun VocabularyApp() {
         }
     }
 
-    MyVocabularyTheme(darkTheme = darkTheme, dynamicColor = false) {
+    MyVocabularyTheme(darkTheme = false, dynamicColor = false) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets.safeDrawing,
@@ -236,10 +235,6 @@ fun VocabularyApp() {
 
                 composable(Screen.Settings.route) {
                     SettingsScreen(
-                        darkTheme = darkTheme,
-                        onDarkThemeChange = { darkTheme = it },
-                        onClearRecentSearches = { recentSearches = emptyList() },
-                        recentSearchCount = recentSearches.size,
                         primaryLanguage = primaryLanguage,
                         onPrimaryLanguageClick = {
                             primaryLanguage = nextCycleValue(primaryLanguage, DisplayLanguage.cycleOrder) as DisplayLanguage

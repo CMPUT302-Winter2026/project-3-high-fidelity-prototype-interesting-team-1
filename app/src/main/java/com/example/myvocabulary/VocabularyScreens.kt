@@ -560,10 +560,6 @@ fun SemanticMapScreen(
 
 @Composable
 fun SettingsScreen(
-    darkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit,
-    onClearRecentSearches: () -> Unit,
-    recentSearchCount: Int,
     primaryLanguage: DisplayLanguage,
     onPrimaryLanguageClick: () -> Unit,
     inlineTranslations: Boolean,
@@ -625,51 +621,6 @@ fun SettingsScreen(
                             )
                         }
                     )
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle("Appearance")
-                    SettingsRow(
-                        title = "Dark theme",
-                        subtitle = "Use a darker palette across the app.",
-                        trailing = {
-                            Switch(
-                                checked = darkTheme,
-                                onCheckedChange = onDarkThemeChange,
-                                colors = appSwitchColors()
-                            )
-                        }
-                    )
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle("Data")
-                    SettingsRow(
-                        title = "Recent searches",
-                        subtitle = "$recentSearchCount saved items",
-                        trailing = {
-                            TextButton(
-                                onClick = onClearRecentSearches,
-                                enabled = recentSearchCount > 0
-                            ) { Text("Clear") }
-                        }
-                    )
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle("About")
-                    SettingsRow(
-                        title = "Vocabulary explorer",
-                        subtitle = "Compose demo with local navigation and sample content."
-                    )
-                }
-            }
-            item {
-                OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Sync Coming Soon")
                 }
             }
         }
@@ -1768,5 +1719,3 @@ fun EmptyState(title: String, body: String) {
         }
     }
 }
-
-
