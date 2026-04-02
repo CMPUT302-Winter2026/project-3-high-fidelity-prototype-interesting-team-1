@@ -101,7 +101,8 @@ fun HomeScreen(
     onSeeAllRecentSearches: () -> Unit,
     categories: List<CategoryCard>,
     onCategoryClick: (SubjectFilter) -> Unit,
-    onWordClick: (String) -> Unit
+    onWordClick: (String) -> Unit,
+    showEntryCounts: Boolean
 ) {
     val pagerState = rememberPagerState(pageCount = { wordOfDayPages.size })
     var searchToDelete by remember { mutableStateOf<String?>(null) }
@@ -197,10 +198,12 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     categories.forEach { category ->
-                        CategoryListItem(
+                        CategoryGridCard(
                             category = category,
-                            onClick = { onCategoryClick(category.subject) },
-                            modifier = Modifier.width(200.dp)
+                            modifier = Modifier.width(150.dp).height(150.dp),
+                            showDescription = false,
+                            showEntryCount = showEntryCounts,
+                            onClick = { onCategoryClick(category.subject) }
                         )
                     }
                 }
@@ -471,7 +474,8 @@ fun CategoriesScreen(
     onSortChange: (SortOption) -> Unit,
     onResetFilters: () -> Unit,
     onBackToHome: () -> Unit,
-    onCategoryClick: (CategoryCard) -> Unit
+    onCategoryClick: (CategoryCard) -> Unit,
+    showEntryCounts: Boolean
 ) {
     val normalizedQuery = query.trim().lowercase()
     val queryTokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -535,6 +539,7 @@ fun CategoriesScreen(
                             modifier = Modifier
                                 .width(180.dp)
                                 .height(220.dp),
+                            showEntryCount = showEntryCounts,
                             onClick = { onCategoryClick(category) }
                         )
                     }
@@ -732,9 +737,8 @@ fun SettingsScreen(
     onPrimaryLanguageClick: () -> Unit,
     inlineTranslations: Boolean,
     onInlineTranslationsChange: (Boolean) -> Unit,
-    showEntryCounts: Boolean,
-    onShowEntryCountsChange: (Boolean) -> Unit,
-    onOpenExpertMode: () -> Unit
+    onOpenExpertMode: () -> Unit,
+    onSeeRecentSearches: () -> Unit
 ) {
     VocabularyScreenSurface {
         LazyColumn(
@@ -779,15 +783,10 @@ fun SettingsScreen(
                         }
                     )
                     SettingsRow(
-                        title = "Show Entry Counts",
-                        subtitle = "Display number of vocabulary entries.",
-                        trailing = {
-                            Switch(
-                                checked = showEntryCounts,
-                                onCheckedChange = onShowEntryCountsChange,
-                                colors = appSwitchColors()
-                            )
-                        }
+                        title = "Recent Searches",
+                        subtitle = "View and manage your search history",
+                        onClick = onSeeRecentSearches,
+                        trailing = { Text("›", style = MaterialTheme.typography.headlineSmall) }
                     )
                 }
             }
@@ -801,8 +800,12 @@ fun ExpertModeScreen(
     onShowSemanticLabelsChange: (Boolean) -> Unit,
     showMorphology: Boolean,
     onShowMorphologyChange: (Boolean) -> Unit,
+    showEntryCounts: Boolean,
+    onShowEntryCountsChange: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
+    val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
+
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -823,12 +826,12 @@ fun ExpertModeScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SettingsRow(
-                        title = "Full Semantic Map",
-                        subtitle = "Show English meanings below map nodes.",
+                        title = "Show Entry Counts",
+                        subtitle = "Display number of vocabulary entries.",
                         trailing = {
                             Switch(
-                                checked = showSemanticLabels,
-                                onCheckedChange = onShowSemanticLabelsChange,
+                                checked = showEntryCounts,
+                                onCheckedChange = onShowEntryCountsChange,
                                 colors = appSwitchColors()
                             )
                         }
@@ -844,27 +847,26 @@ fun ExpertModeScreen(
                             )
                         }
                     )
-                }
-            }
-            item {
-                if (showMorphology) {
-                    MorphologyPreviewCard()
-                } else {
-                    EmptyState(
-                        title = "Morphology Preview Hidden",
-                        body = "Enable Show Morphology to inspect word structure."
+                    MorphologyPreviewCard(word = previewWord, modifier = Modifier.padding(start = 16.dp))
+                    
+                    SettingsRow(
+                        title = "Full Semantic Map",
+                        subtitle = "Show English meanings below map nodes.",
+                        trailing = {
+                            Switch(
+                                checked = showSemanticLabels,
+                                onCheckedChange = onShowSemanticLabelsChange,
+                                colors = appSwitchColors()
+                            )
+                        }
                     )
+                    SemanticMapPreviewCard(showSemanticLabels = showSemanticLabels, modifier = Modifier.padding(start = 16.dp))
                 }
-            }
-            item {
-                EmptyState(
-                    title = "Semantic Map Moved",
-                    body = "Open a word and tap View Word Connections to see its map."
-                )
             }
         }
     }
 }
+
 @Composable
 fun VocabularyScreenSurface(content: @Composable () -> Unit) {
     Box(
@@ -1115,7 +1117,13 @@ fun SearchResultItem(word: VocabularyWord, showInlineTranslation: Boolean, onCli
 }
 
 @Composable
-fun CategoryGridCard(category: CategoryCard, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun CategoryGridCard(
+    category: CategoryCard,
+    modifier: Modifier = Modifier,
+    showDescription: Boolean = true,
+    showEntryCount: Boolean = true,
+    onClick: () -> Unit
+) {
     Card(
         onClick = onClick,
         modifier = modifier,
@@ -1128,15 +1136,17 @@ fun CategoryGridCard(category: CategoryCard, modifier: Modifier = Modifier, onCl
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
-            Text(
-                text = category.count.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            if (showEntryCount) {
+                Text(
+                    text = category.count.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(102.dp)
+                    .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)),
                 contentAlignment = Alignment.Center
@@ -1149,17 +1159,19 @@ fun CategoryGridCard(category: CategoryCard, modifier: Modifier = Modifier, onCl
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = category.subject.label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = category.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = category.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (showDescription) {
+                Text(
+                    text = category.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -1509,17 +1521,24 @@ fun MorphologyRow(label: String, value: String, description: String) {
 }
 
 @Composable
-fun SemanticMapPreviewCard(onWordClick: (String) -> Unit) {
-    val previewWord = vocabularyWords.first()
+fun SemanticMapPreviewCard(
+    showSemanticLabels: Boolean = false,
+    modifier: Modifier = Modifier,
+    onWordClick: (String) -> Unit = {}
+) {
+    val previewWord = vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first()
     val relatedWords = previewWord.relatedWordIds.mapNotNull { id ->
         vocabularyWords.firstOrNull { it.id == id }
     }
-    WordSemanticMapCard(
-        word = previewWord,
-        relatedWords = relatedWords,
-        showEnglishMeanings = false,
-        onWordClick = onWordClick
-    )
+    Box(modifier = modifier) {
+        WordSemanticMapCard(
+            word = previewWord,
+            relatedWords = relatedWords,
+            showEnglishMeanings = showSemanticLabels,
+            title = "Semantic Map Preview",
+            onWordClick = onWordClick
+        )
+    }
 }
 
 @Composable
@@ -1527,6 +1546,7 @@ fun WordSemanticMapCard(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
     showEnglishMeanings: Boolean,
+    title: String = "Semantic Map",
     onWordClick: (String) -> Unit
 ) {
     val centerAccent = Accent
@@ -1557,15 +1577,25 @@ fun WordSemanticMapCard(
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Semantic Map",
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = word.cree,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Connections for ${word.cree}. Tap a node to open that exact word.",
-                style = MaterialTheme.typography.bodySmall,
+                text = word.english,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Tap a node to open that exact word.",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row(
@@ -1587,51 +1617,54 @@ fun WordSemanticMapCard(
                     }
                 }
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(360.dp)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.background)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
-                        .size(mapSize.width, mapSize.height)
-                        .padding(18.dp)
-                        .transformable(transformState)
-                        .graphicsLayer(
-                            scaleX = zoom,
-                            scaleY = zoom,
-                            translationX = offset.x,
-                            translationY = offset.y
-                        )
+                        .fillMaxWidth()
+                        .height(300.dp)
                 ) {
-                    SemanticConnectionLayer(
-                        hubPosition = hubPosition,
-                        hubSize = hubSize,
-                        relations = relations,
-                        relationSize = relationSize
-                    )
-                    SemanticHub(
-                        label = word.cree,
-                        subtitle = word.english,
-                        showSubtitle = showEnglishMeanings,
+                    Box(
                         modifier = Modifier
-                            .offset(x = hubPosition.x, y = hubPosition.y)
-                            .size(hubSize.width, hubSize.height),
-                        accent = centerAccent
-                    )
-                    relations.forEach { relation ->
-                        SemanticRelationCard(
-                            word = relation.word,
-                            accent = relation.accent,
-                            showEnglishMeanings = showEnglishMeanings,
-                            modifier = Modifier
-                                .offset(x = relation.position.x, y = relation.position.y)
-                                .size(relationSize.width, relationSize.height),
-                            onClick = { onWordClick(relation.word.id) }
+                            .size(mapSize.width, mapSize.height)
+                            .padding(18.dp)
+                            .transformable(transformState)
+                            .graphicsLayer(
+                                scaleX = zoom,
+                                scaleY = zoom,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    ) {
+                        SemanticConnectionLayer(
+                            hubPosition = hubPosition,
+                            hubSize = hubSize,
+                            relations = relations,
+                            relationSize = relationSize
                         )
+                        SemanticHub(
+                            label = word.cree,
+                            subtitle = word.english,
+                            showSubtitle = showEnglishMeanings,
+                            modifier = Modifier
+                                .offset(x = hubPosition.x, y = hubPosition.y)
+                                .size(hubSize.width, hubSize.height),
+                            accent = centerAccent
+                        )
+                        relations.forEach { relation ->
+                            SemanticRelationCard(
+                                word = relation.word,
+                                accent = relation.accent,
+                                showEnglishMeanings = showEnglishMeanings,
+                                modifier = Modifier
+                                    .offset(x = relation.position.x, y = relation.position.y)
+                                    .size(relationSize.width, relationSize.height),
+                                onClick = { onWordClick(relation.word.id) }
+                            )
+                        }
                     }
                 }
             }

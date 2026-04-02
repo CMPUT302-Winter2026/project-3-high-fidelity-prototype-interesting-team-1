@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -84,6 +83,19 @@ fun VocabularyApp() {
         navController.navigate(Screen.detailsRoute(wordId))
     }
 
+    val onRecentClick: (String) -> Unit = { term ->
+        val matchedWord = vocabularyWords.firstOrNull {
+            it.cree.equals(term, ignoreCase = true) ||
+            it.english.equals(term, ignoreCase = true) ||
+            it.id.equals(term, ignoreCase = true)
+        }
+        if (matchedWord != null) {
+            openWord(matchedWord.id)
+        } else {
+            openSearch(term, false)
+        }
+    }
+
     val openTopLevel: (Screen) -> Unit = { destination ->
         val popped = navController.popBackStack(destination.route, inclusive = false)
         if (!popped) {
@@ -126,9 +138,7 @@ fun VocabularyApp() {
                             vocabularyWords.firstOrNull { it.id == id }
                         },
                         recentSearches = recentSearches,
-                        onRecentSearchClick = { search ->
-                            openSearch(search, false)
-                        },
+                        onRecentSearchClick = onRecentClick,
                         onDeleteRecentSearch = { search ->
                             recentSearches = recentSearches.filterNot { it == search }
                         },
@@ -143,16 +153,15 @@ fun VocabularyApp() {
                             searchQuery = subject.label
                             openTopLevel(Screen.Search)
                         },
-                        onWordClick = openWord
+                        onWordClick = openWord,
+                        showEntryCounts = showEntryCounts
                     )
                 }
 
                 composable(Screen.RecentSearches.route) {
                     RecentSearchesScreen(
                         recentSearches = recentSearches,
-                        onRecentSearchClick = { search ->
-                            openSearch(search, false)
-                        },
+                        onRecentSearchClick = onRecentClick,
                         onDeleteSelectedSearches = { selected ->
                             recentSearches = recentSearches.filterNot { it in selected }
                         },
@@ -185,7 +194,8 @@ fun VocabularyApp() {
                             searchSort = SortOption.Relevance
                             searchQuery = category.title
                             openTopLevel(Screen.Search)
-                        }
+                        },
+                        showEntryCounts = showEntryCounts
                     )
                 }
 
@@ -259,10 +269,11 @@ fun VocabularyApp() {
                         },
                         inlineTranslations = inlineTranslations,
                         onInlineTranslationsChange = { inlineTranslations = it },
-                        showEntryCounts = showEntryCounts,
-                        onShowEntryCountsChange = { showEntryCounts = it },
                         onOpenExpertMode = {
-                            openTopLevel(Screen.Expert)
+                            navController.navigate(Screen.Expert.route)
+                        },
+                        onSeeRecentSearches = {
+                            navController.navigate(Screen.RecentSearches.route)
                         }
                     )
                 }
@@ -273,6 +284,8 @@ fun VocabularyApp() {
                         onShowSemanticLabelsChange = { showSemanticLabels = it },
                         showMorphology = showMorphology,
                         onShowMorphologyChange = { showMorphology = it },
+                        showEntryCounts = showEntryCounts,
+                        onShowEntryCountsChange = { showEntryCounts = it },
                         onBack = { navController.popBackStack() }
                     )
                 }
