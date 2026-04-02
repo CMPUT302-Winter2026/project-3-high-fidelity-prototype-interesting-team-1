@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -57,6 +59,9 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +77,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -91,12 +97,35 @@ fun HomeScreen(
     wordOfDayPages: List<VocabularyWord>,
     recentSearches: List<String>,
     onRecentSearchClick: (String) -> Unit,
-    onClearRecentSearches: () -> Unit,
+    onDeleteRecentSearch: (String) -> Unit,
+    onSeeAllRecentSearches: () -> Unit,
     categories: List<CategoryCard>,
     onCategoryClick: (SubjectFilter) -> Unit,
     onWordClick: (String) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { wordOfDayPages.size })
+    var searchToDelete by remember { mutableStateOf<String?>(null) }
+
+    if (searchToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { searchToDelete = null },
+            title = { Text("Remove from history?") },
+            text = { Text("Do you want to remove '${searchToDelete}' from your search history?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        searchToDelete?.let { onDeleteRecentSearch(it) }
+                        searchToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            textContentColor = MaterialTheme.colorScheme.onSurface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface
+        )
+    }
 
     VocabularyScreenSurface {
         LazyColumn(
@@ -108,22 +137,25 @@ fun HomeScreen(
         ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    ScreenHeader(title = "Vocabulary Explorer")
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Vocabulary Explorer",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     SearchField(
                         value = query,
                         onValueChange = onQueryChange,
                         placeholder = "Search Cree or English",
                         onSearch = onSearch
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                     SectionTitle("Word of the Day")
-                    Text(
-                        text = wordOfDayPages[pagerState.currentPage].cree,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier
@@ -157,17 +189,28 @@ fun HomeScreen(
             }
             item {
                 SectionTitle("Suggested Categories")
-                Spacer(modifier = Modifier.height(4.dp))
-                categories.forEach { category ->
-                    CategoryListItem(category = category, onClick = { onCategoryClick(category.subject) })
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    categories.forEach { category ->
+                        CategoryListItem(
+                            category = category,
+                            onClick = { onCategoryClick(category.subject) },
+                            modifier = Modifier.width(200.dp)
+                        )
+                    }
                 }
             }
             item {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(32.dp))
             }
             item {
                 SectionTitle("Recent Searches")
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 if (recentSearches.isEmpty()) {
                     Text(
                         text = "No recent searches yet.",
@@ -175,27 +218,152 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        recentSearches.take(3).forEach { term ->
-                            AssistChip(
-                                onClick = { onRecentSearchClick(term) },
-                                label = { Text(term, maxLines = 1) }
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            recentSearches.take(10).forEach { term ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                                    modifier = Modifier.combinedClickable(
+                                        onClick = { onRecentSearchClick(term) },
+                                        onLongClick = { searchToDelete = term }
+                                    )
+                                ) {
+                                    Text(
+                                        text = term,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
+                        Text(
+                            text = "Hold a word to remove it.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
                     }
                 }
             }
             item {
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(onClick = onClearRecentSearches, modifier = Modifier.fillMaxWidth()) {
-                    Text("Clear All")
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = onSeeAllRecentSearches, modifier = Modifier.fillMaxWidth()) {
+                    Text("See All")
                 }
             }
             item {
                 Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun RecentSearchesScreen(
+    recentSearches: List<String>,
+    onRecentSearchClick: (String) -> Unit,
+    onDeleteSelectedSearches: (List<String>) -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedSearches by remember { mutableStateOf(setOf<String>()) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Delete selected?") },
+            text = { Text("Are you sure you want to remove ${selectedSearches.size} selected items from your history?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteSelectedSearches(selectedSearches.toList())
+                        selectedSearches = emptySet()
+                        showDeleteConfirmation = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
+    VocabularyScreenSurface {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            ScreenHeader(title = "Recent Searches", onBack = onBack)
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = {
+                        if (selectedSearches.size == recentSearches.size) {
+                            selectedSearches = emptySet()
+                        } else {
+                            selectedSearches = recentSearches.toSet()
+                        }
+                    }
+                ) {
+                    Text(if (selectedSearches.size == recentSearches.size) "Deselect All" else "Select All")
+                }
+                
+                IconButton(
+                    onClick = { if (selectedSearches.isNotEmpty()) showDeleteConfirmation = true },
+                    enabled = selectedSearches.isNotEmpty()
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete Selected",
+                        tint = if (selectedSearches.isNotEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(recentSearches) { search ->
+                    Surface(
+                        onClick = { onRecentSearchClick(search) },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = androidx.compose.ui.graphics.Color.Transparent
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = search in selectedSearches,
+                                onCheckedChange = { checked ->
+                                    selectedSearches = if (checked) {
+                                        selectedSearches + search
+                                    } else {
+                                        selectedSearches - search
+                                    }
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = search,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                }
             }
         }
     }
@@ -830,14 +998,8 @@ fun WordOfDayCard(word: VocabularyWord, onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "Word of the Day",
-                style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 1.sp),
-                color = MaterialTheme.colorScheme.primary,
-                overflow = TextOverflow.Ellipsis
-            )
             Column {
                 Text(
                     text = word.cree,
@@ -855,15 +1017,14 @@ fun WordOfDayCard(word: VocabularyWord, onClick: () -> Unit) {
 }
 
 @Composable
-fun CategoryListItem(category: CategoryCard, onClick: () -> Unit) {
+fun CategoryListItem(category: CategoryCard, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .padding(vertical = 6.dp)
     ) {
         Row(
@@ -883,12 +1044,7 @@ fun CategoryListItem(category: CategoryCard, onClick: () -> Unit) {
                 Text(
                     text = category.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = category.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

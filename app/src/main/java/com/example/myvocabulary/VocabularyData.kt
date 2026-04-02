@@ -7,7 +7,8 @@ enum class Screen(val route: String, val label: String) {
     Details("details/{wordId}", "Word Details"),
     SemanticMap("semantic-map/{wordId}", "Semantic Map"),
     Settings("settings", "Settings"),
-    Expert("expert", "Expert Mode");
+    Expert("expert", "Expert Mode"),
+    RecentSearches("recent-searches", "Recent Searches");
 
     companion object {
         fun detailsRoute(wordId: String) = "details/$wordId"

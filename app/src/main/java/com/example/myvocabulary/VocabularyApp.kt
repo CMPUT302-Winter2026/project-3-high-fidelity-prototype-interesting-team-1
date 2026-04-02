@@ -44,7 +44,7 @@ fun VocabularyApp() {
     var categoryWordType by rememberSaveable { mutableStateOf(WordTypeFilter.All) }
     var categorySort by rememberSaveable { mutableStateOf(SortOption.Relevance) }
     var recentSearches by rememberSaveable {
-        mutableStateOf(listOf("Wâpos", "Mosquito", "Rain"))
+        mutableStateOf(listOf("Wâpos", "Mosquito", "Rain", "Wind", "Cloud", "Snow", "Lake", "Fish", "Soup", "Heart"))
     }
     var primaryLanguage by rememberSaveable { mutableStateOf(DisplayLanguage.Both) }
     var inlineTranslations by rememberSaveable { mutableStateOf(false) }
@@ -129,7 +129,12 @@ fun VocabularyApp() {
                         onRecentSearchClick = { search ->
                             openSearch(search, false)
                         },
-                        onClearRecentSearches = { recentSearches = emptyList() },
+                        onDeleteRecentSearch = { search ->
+                            recentSearches = recentSearches.filterNot { it == search }
+                        },
+                        onSeeAllRecentSearches = {
+                            navController.navigate(Screen.RecentSearches.route)
+                        },
                         categories = suggestedCategories,
                         onCategoryClick = { subject ->
                             searchSubject = subject
@@ -139,6 +144,19 @@ fun VocabularyApp() {
                             openTopLevel(Screen.Search)
                         },
                         onWordClick = openWord
+                    )
+                }
+
+                composable(Screen.RecentSearches.route) {
+                    RecentSearchesScreen(
+                        recentSearches = recentSearches,
+                        onRecentSearchClick = { search ->
+                            openSearch(search, false)
+                        },
+                        onDeleteSelectedSearches = { selected ->
+                            recentSearches = recentSearches.filterNot { it in selected }
+                        },
+                        onBack = { navController.popBackStack() }
                     )
                 }
 
