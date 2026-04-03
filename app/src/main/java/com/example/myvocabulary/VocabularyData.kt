@@ -62,6 +62,14 @@ enum class DisplayLanguage(val label: String) {
     }
 }
 
+data class DetailedMorphology(
+    val stem: String = "",
+    val stemMeaning: String = "",
+    val suffix: String = "",
+    val suffixMeaning: String = "",
+    val grammaticalForm: String = ""
+)
+
 data class VocabularyWord(
     val id: String,
     val cree: String,
@@ -74,6 +82,7 @@ data class VocabularyWord(
     val exampleSentence: String,
     val relatedWordIds: List<String>,
     val morphology: String = "",
+    val detailedMorphology: DetailedMorphology = DetailedMorphology(),
     val icon: String
 )
 
@@ -98,6 +107,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Nîhka wâpos ôtâ. (I see a rabbit.)",
         relatedWordIds = listOf("waposis", "wapak", "wapit"),
         morphology = "Root form: wapos. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "wâpos-",
+            stemMeaning = "rabbit",
+            suffix = "",
+            suffixMeaning = "",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "RB"
     ),
     VocabularyWord(
@@ -112,6 +128,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Wâposis nisto. (The small rabbit is near.)",
         relatedWordIds = listOf("wapos", "wapit", "misko"),
         morphology = "wapos + -is. Diminutive form meaning \"small rabbit\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "wâpos-",
+            stemMeaning = "rabbit",
+            suffix = "-is",
+            suffixMeaning = "diminutive (small)",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "RBT"
     ),
     VocabularyWord(
@@ -126,6 +149,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Wâpâk nipâw. (The hare is resting.)",
         relatedWordIds = listOf("wapos", "waposis", "mistik"),
         morphology = "Root form: wapak. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "wâpâk-",
+            stemMeaning = "hare",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "HR"
     ),
     VocabularyWord(
@@ -140,6 +168,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Wâpitiw kîsikâw. (The animal is outside.)",
         relatedWordIds = listOf("wapos", "waposis", "mako"),
         morphology = "Root form: wapitiw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "wâpitiw-",
+            stemMeaning = "animal",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "AN"
     ),
     VocabularyWord(
@@ -154,6 +187,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Môswa papâs. (A mosquito is buzzing.)",
         relatedWordIds = listOf("wapos", "rain", "foods"),
         morphology = "Root form: moswa. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "môsw-",
+            stemMeaning = "mosquito",
+            suffix = "-a",
+            suffixMeaning = "animate plural",
+            grammaticalForm = "noun • animate • plural"
+        ),
         icon = "MSQ"
     ),
     VocabularyWord(
@@ -168,6 +208,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Kisâw ohcihî. (It is raining.)",
         relatedWordIds = listOf("snow", "wind", "cloud"),
         morphology = "Root form: kisaw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "kisâw-",
+            stemMeaning = "rain",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "RN"
     ),
     VocabularyWord(
@@ -182,6 +227,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Mistapêw osâw. (Snow is falling.)",
         relatedWordIds = listOf("rain", "wind", "cloud"),
         morphology = "Root form: mistapew. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mistapêw-",
+            stemMeaning = "snow",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "SN"
     ),
     VocabularyWord(
@@ -196,6 +246,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Miyôw kisêw. (The wind is cold.)",
         relatedWordIds = listOf("rain", "snow", "cloud"),
         morphology = "Root form: miyow. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "miyô-",
+            stemMeaning = "good / fair",
+            suffix = "-w",
+            suffixMeaning = "inanimate third person",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "WN"
     ),
     VocabularyWord(
@@ -210,6 +267,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Pîkiskwêw kakîy. (Clouds gather.)",
         relatedWordIds = listOf("rain", "snow", "wind"),
         morphology = "Root form: pikiskwew. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "pîkiskwê-",
+            stemMeaning = "speak / word",
+            suffix = "-w",
+            suffixMeaning = "agentive suffix",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "CL"
     ),
     VocabularyWord(
@@ -224,6 +288,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mîyohtâw maskawis. (The heart is strong.)",
         relatedWordIds = listOf("body", "hands", "eyes"),
         morphology = "Root form: miyohtaw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîyo-",
+            stemMeaning = "good",
+            suffix = "-htâw",
+            suffixMeaning = "internal body part",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "HT"
     ),
     VocabularyWord(
@@ -238,6 +309,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Nîpîn misko. (The hands are red.)",
         relatedWordIds = listOf("heart", "eyes", "feet"),
         morphology = "Root form: nipin. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "nîp-",
+            stemMeaning = "hand",
+            suffix = "-în",
+            suffixMeaning = "plural inanimate",
+            grammaticalForm = "noun • inanimate • plural"
+        ),
         icon = "HD"
     ),
     VocabularyWord(
@@ -252,6 +330,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mîciso kisêw. (Eat the meal.)",
         relatedWordIds = listOf("bread", "berry", "water"),
         morphology = "Verb stem: miciso. Action verb meaning \"eat\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîci-",
+            stemMeaning = "eat something",
+            suffix = "-so",
+            suffixMeaning = "reflexive (self)",
+            grammaticalForm = "verb • animate intransitive • imperative"
+        ),
         icon = "FD"
     ),
     VocabularyWord(
@@ -266,6 +351,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Pimîwâkan nistam. (Bread first.)",
         relatedWordIds = listOf("eat", "berry", "water"),
         morphology = "Root form: pimiwaakan. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "pimi-",
+            stemMeaning = "fat / oil",
+            suffix = "-wâkan",
+            suffixMeaning = "tool / instrument",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "BR"
     ),
     VocabularyWord(
@@ -280,6 +372,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Pimipahtâw ohci. (Travel to the land.)",
         relatedWordIds = listOf("road", "home", "camp"),
         morphology = "Verb stem: pimipahtaw. Action verb meaning \"travel\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "pimi-",
+            stemMeaning = "along",
+            suffix = "-pahtâw",
+            suffixMeaning = "run / move quickly",
+            grammaticalForm = "verb • animate intransitive • singular"
+        ),
         icon = "TR"
     ),
     VocabularyWord(
@@ -294,6 +393,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Mîchif kahkiyaw. (The road is open.)",
         relatedWordIds = listOf("travel", "home", "camp"),
         morphology = "Root form: michif. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîchif-",
+            stemMeaning = "Michif / road",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "RD"
     ),
     VocabularyWord(
@@ -308,6 +412,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Nikaw maskawis. (The body is strong.)",
         relatedWordIds = listOf("heart", "hands", "eyes"),
         morphology = "Root form: nikaw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "ni-",
+            stemMeaning = "my",
+            suffix = "-kaw",
+            suffixMeaning = "body",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "BD"
     ),
     VocabularyWord(
@@ -322,6 +433,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mitaw kisikaw. (The eyes are open.)",
         relatedWordIds = listOf("heart", "hands", "feet"),
         morphology = "Root form: mitaw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mi-",
+            stemMeaning = "someone's / indefinite",
+            suffix = "-taw",
+            suffixMeaning = "eye",
+            grammaticalForm = "noun • inanimate • plural"
+        ),
         icon = "EY"
     ),
     VocabularyWord(
@@ -336,6 +454,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mitapan pakam. (The feet are moving.)",
         relatedWordIds = listOf("hands", "eyes", "body"),
         morphology = "Root form: mitapan. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mi-",
+            stemMeaning = "someone's / indefinite",
+            suffix = "-tapan",
+            suffixMeaning = "foot / leg",
+            grammaticalForm = "noun • inanimate • plural"
+        ),
         icon = "FT"
     ),
     VocabularyWord(
@@ -350,6 +475,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mimin mIciso. (Eat the berries.)",
         relatedWordIds = listOf("eat", "bread", "water"),
         morphology = "Root form: mimin. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mi-",
+            stemMeaning = "fruit / berry",
+            suffix = "-min",
+            suffixMeaning = "small round object",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "BY"
     ),
     VocabularyWord(
@@ -364,6 +496,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Nipiy kisikaw. (Water is clear.)",
         relatedWordIds = listOf("eat", "bread", "berry"),
         morphology = "Root form: nipiy. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "nipiy-",
+            stemMeaning = "water",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "WT"
     ),
     VocabularyWord(
@@ -378,6 +515,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Kisik nistam. (Home first.)",
         relatedWordIds = listOf("travel", "road", "camp"),
         morphology = "Root form: kisik. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "kîsik-",
+            stemMeaning = "sky / day / home",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "HM"
     ),
     VocabularyWord(
@@ -392,6 +534,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Miskotahk nipaw. (The camp is quiet.)",
         relatedWordIds = listOf("travel", "road", "home"),
         morphology = "Root form: miskotahk. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "misk-",
+            stemMeaning = "find",
+            suffix = "-otahk",
+            suffixMeaning = "place of dwelling",
+            grammaticalForm = "noun • inanimate • locative"
+        ),
         icon = "CP"
     ),
     VocabularyWord(
@@ -406,6 +555,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Miskow mina. (The berry is red.)",
         relatedWordIds = listOf("wapos", "waposis", "berry"),
         morphology = "Root form: miskow. Descriptive adjective.",
+        detailedMorphology = DetailedMorphology(
+            stem = "misko-",
+            stemMeaning = "red / blood",
+            suffix = "-w",
+            suffixMeaning = "stative suffix",
+            grammaticalForm = "adjective • descriptive"
+        ),
         icon = "RD"
     ),
     VocabularyWord(
@@ -420,6 +576,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Mistikw kihcik. (The tree is tall.)",
         relatedWordIds = listOf("road", "home", "camp"),
         morphology = "Root form: mistikw. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mistik-",
+            stemMeaning = "wood / tree",
+            suffix = "-w",
+            suffixMeaning = "singular marker",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "TR"
     ),
     VocabularyWord(
@@ -434,6 +597,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Mako minis. (The bear is nearby.)",
         relatedWordIds = listOf("wapos", "wapit", "misko"),
         morphology = "Root form: mako. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mask-",
+            stemMeaning = "bear",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "BR"
     ),
     VocabularyWord(
@@ -448,6 +616,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Atik miyo. (The deer is calm.)",
         relatedWordIds = listOf("wapos", "mako", "fish"),
         morphology = "Root form: atik. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "atikw-",
+            stemMeaning = "caribou / deer",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "DR"
     ),
     VocabularyWord(
@@ -462,6 +635,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Pisim kisikaw. (The sun is bright.)",
         relatedWordIds = listOf("rain", "cloud", "wind"),
         morphology = "Root form: pisim. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "pîsim-",
+            stemMeaning = "sun / moon / month",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "SU"
     ),
     VocabularyWord(
@@ -476,6 +654,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Sakahikan mino. (The lake is peaceful.)",
         relatedWordIds = listOf("water", "home", "camp"),
         morphology = "Root form: sakahikan. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "sak-",
+            stemMeaning = "tight / together",
+            suffix = "-ahikan",
+            suffixMeaning = "artificial / body of water",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "LK"
     ),
     VocabularyWord(
@@ -490,6 +675,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Kinoo nipiy. (The fish is in the water.)",
         relatedWordIds = listOf("water", "eat", "berry"),
         morphology = "Root form: kinoo. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "kinosêw-",
+            stemMeaning = "fish",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "FH"
     ),
     VocabularyWord(
@@ -504,6 +694,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Micim mino. (The soup is good.)",
         relatedWordIds = listOf("eat", "bread", "water"),
         morphology = "Root form: micim. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîci-",
+            stemMeaning = "eat",
+            suffix = "-m",
+            suffixMeaning = "nominalizer (thing)",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
         icon = "SP"
     ),
     VocabularyWord(
@@ -518,6 +715,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Nitis kwayask. (A friend is nearby.)",
         relatedWordIds = listOf("hello", "good", "home"),
         morphology = "Root form: nitis. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "ni-",
+            stemMeaning = "my",
+            suffix = "-tîm",
+            suffixMeaning = "companion / horse",
+            grammaticalForm = "noun • animate • singular"
+        ),
         icon = "FR"
     ),
     VocabularyWord(
@@ -532,6 +736,13 @@ val vocabularyWords = listOf(
         exampleSentence = "Tansi, nitis! (Hello, friend!)",
         relatedWordIds = listOf("friend", "home", "camp"),
         morphology = "Greeting phrase used to say hello.",
+        detailedMorphology = DetailedMorphology(
+            stem = "tân-",
+            stemMeaning = "how",
+            suffix = "-si",
+            suffixMeaning = "manner suffix",
+            grammaticalForm = "phrase • greeting"
+        ),
         icon = "HI"
     ),
     VocabularyWord(
@@ -546,6 +757,11 @@ val vocabularyWords = listOf(
         exampleSentence = "Miyo nitis. (A good friend.)",
         relatedWordIds = listOf("misko", "friend", "hello"),
         morphology = "Descriptive adjective meaning \"good\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîyo-",
+            stemMeaning = "good / well",
+            grammaticalForm = "adjective • particle"
+        ),
         icon = "GD"
     )
 )

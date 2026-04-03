@@ -31,21 +31,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -80,13 +78,13 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.tooling.preview.Preview
 import com.example.myvocabulary.ui.theme.Accent
 import com.example.myvocabulary.ui.theme.AccentDark
+import com.example.myvocabulary.ui.theme.MyVocabularyTheme
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -348,10 +346,10 @@ fun RecentSearchesScreen(
             ) {
                 TextButton(
                     onClick = {
-                        if (selectedSearches.size == recentSearches.size) {
-                            selectedSearches = emptySet()
+                        selectedSearches = if (selectedSearches.size == recentSearches.size) {
+                            emptySet()
                         } else {
-                            selectedSearches = recentSearches.toSet()
+                            recentSearches.toSet()
                         }
                     }
                 ) {
@@ -433,7 +431,7 @@ fun RecentSearchesScreen(
                             }
                         }
                     }
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 }
             }
         }
@@ -532,27 +530,29 @@ fun SearchResultsScreen(
     }
 }
 
+enum class CategorySort {
+    AlphabeticalAZ,
+    AlphabeticalZA
+}
+
 @Composable
 fun CategoriesScreen(
     query: String,
-    subjectFilter: SubjectFilter,
-    wordTypeFilter: WordTypeFilter,
-    sortOption: SortOption,
     onQueryChange: (String) -> Unit,
-    onSubjectChange: (SubjectFilter) -> Unit,
-    onWordTypeChange: (WordTypeFilter) -> Unit,
-    onSortChange: (SortOption) -> Unit,
-    onResetFilters: () -> Unit,
     onBackToHome: () -> Unit,
     onCategoryClick: (CategoryCard) -> Unit,
     showEntryCounts: Boolean,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean
 ) {
-    val normalizedQuery = query.trim().lowercase()
-    val queryTokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
-    val categoryResults = remember(query) {
-        suggestedCategories.filter {
+    var sortOrder by remember { mutableStateOf(CategorySort.AlphabeticalAZ) }
+    var wordTypeFilter by remember { mutableStateOf(WordTypeFilter.All) }
+    
+    val categoryResults = remember(query, sortOrder, primaryLanguage) {
+        val normalizedQuery = query.trim().lowercase()
+        val queryTokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
+        
+        val filtered = suggestedCategories.filter {
             normalizedQuery.isBlank() ||
                 it.title.contains(normalizedQuery, ignoreCase = true) ||
                 it.description.contains(normalizedQuery, ignoreCase = true) ||
@@ -560,6 +560,11 @@ fun CategoriesScreen(
                     it.title.contains(token, ignoreCase = true) ||
                         it.description.contains(token, ignoreCase = true)
                 }
+        }
+        
+        when (sortOrder) {
+            CategorySort.AlphabeticalAZ -> filtered.sortedBy { if (primaryLanguage == DisplayLanguage.English) it.title else it.subject.creeLabel }
+            CategorySort.AlphabeticalZA -> filtered.sortedByDescending { if (primaryLanguage == DisplayLanguage.English) it.title else it.subject.creeLabel }
         }
     }
 
@@ -586,36 +591,50 @@ fun CategoriesScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionLabel("Filters")
-                    FilterRow(
-                        subject = subjectFilter,
-                        wordType = wordTypeFilter,
-                        sort = sortOption,
-                        onSubjectChange = onSubjectChange,
-                        onWordTypeChange = onWordTypeChange,
-                        onSortChange = onSortChange,
-                        onReset = onResetFilters
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DropdownFilterField(
+                            label = "Sort By",
+                            selectedValue = if (sortOrder == CategorySort.AlphabeticalAZ) "A - Z" else "Z - A",
+                            options = listOf(CategorySort.AlphabeticalAZ, CategorySort.AlphabeticalZA),
+                            optionLabel = { if (it == CategorySort.AlphabeticalAZ) "A - Z" else "Z - A" },
+                            onSelected = { sortOrder = it },
+                            modifier = Modifier.width(180.dp)
+                        )
+                        DropdownFilterField(
+                            label = "Word Type",
+                            selectedValue = wordTypeFilter.label,
+                            options = WordTypeFilter.entries,
+                            optionLabel = { it.label },
+                            onSelected = { wordTypeFilter = it },
+                            modifier = Modifier.width(180.dp)
+                        )
+                    }
                 }
             }
             item { SectionTitle("Categories") }
-            items(categoryResults.chunked(3), key = { row -> row.first().title }) { rowItems ->
+            
+            items(categoryResults.chunked(2)) { rowItems ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     rowItems.forEach { category ->
                         CategoryGridCard(
                             category = category,
-                            modifier = Modifier
-                                .width(180.dp)
-                                .height(220.dp),
+                            modifier = Modifier.weight(1f).height(180.dp),
                             showEntryCount = showEntryCounts,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = inlineTranslations,
                             onClick = { onCategoryClick(category) }
                         )
+                    }
+                    if (rowItems.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -678,7 +697,7 @@ fun WordDetailsScreen(
             item {
                 SectionTitle("Pronunciation")
                 ActionRow(
-                    icon = Icons.Filled.VolumeUp,
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
                     label = word.pronunciationLabel,
                     onClick = { playbackMessage = "Playing audio for ${word.cree}" }
                 )
@@ -686,7 +705,7 @@ fun WordDetailsScreen(
             item {
                 SectionTitle("Part of Speech")
                 ActionRow(
-                    icon = Icons.Filled.MenuBook,
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
                     label = word.partOfSpeech.replaceFirstChar { it.uppercase() }
                 )
             }
@@ -725,12 +744,11 @@ fun WordDetailsScreen(
                 }
             }
             if (showMorphology) {
+                item { SectionTitle("Morphology") }
                 item {
-                    MorphologyPreviewCard(
+                    MorphologyCard(
                         word = word,
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = inlineTranslations,
-                        modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
+                        modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp)
                     )
                 }
             }
@@ -924,7 +942,6 @@ fun ExpertModeScreen(
     showEntryCounts: Boolean,
     onShowEntryCountsChange: (Boolean) -> Unit,
     primaryLanguage: DisplayLanguage,
-    inlineTranslations: Boolean,
     onBack: () -> Unit
 ) {
     val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
@@ -961,7 +978,7 @@ fun ExpertModeScreen(
                     )
                     SettingsRow(
                         title = "Show Morphology",
-                        subtitle = "Display the morphology preview card.",
+                        subtitle = "Display the morphology card on details.",
                         trailing = {
                             Switch(
                                 checked = showMorphology,
@@ -970,10 +987,8 @@ fun ExpertModeScreen(
                             )
                         }
                     )
-                    MorphologyPreviewCard(
+                    MorphologyCard(
                         word = previewWord,
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = inlineTranslations,
                         modifier = Modifier.padding(start = 16.dp)
                     )
                     
@@ -1047,7 +1062,7 @@ fun ScreenHeader(title: String, onBack: (() -> Unit)? = null) {
                 tonalElevation = 1.dp
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -1161,48 +1176,6 @@ fun WordOfDayCard(
 }
 
 @Composable
-fun CategoryListItem(category: CategoryCard, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = modifier
-            .padding(vertical = 6.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                Text(
-                    text = category.icon.uppercase(),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = category.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Icon(
-                imageVector = Icons.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 fun SearchResultItem(
     word: VocabularyWord,
     primaryLanguage: DisplayLanguage,
@@ -1257,7 +1230,7 @@ fun SearchResultItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Icon(
-                    imageVector = Icons.Filled.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1371,7 +1344,7 @@ fun RelatedWordItem(
             }
             Column(modifier = Modifier.weight(1f)) {
                 val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
+                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
 
                 Text(
                     text = primaryText,
@@ -1387,7 +1360,7 @@ fun RelatedWordItem(
                 }
             }
             Icon(
-                imageVector = Icons.Filled.ArrowForward,
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1477,20 +1450,6 @@ fun FilterRow(
             }
         }
     }
-}
-
-@Composable
-fun CycleChip(label: String, value: String, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = {
-            Text(
-                text = if (value.isBlank()) label else "$label: $value",
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    )
 }
 
 @Composable
@@ -1615,60 +1574,36 @@ private fun appSwitchColors() = SwitchDefaults.colors(
 )
 
 @Composable
-fun MorphologyPreviewCard(
-    word: VocabularyWord? = null,
-    primaryLanguage: DisplayLanguage,
-    inlineTranslations: Boolean,
+fun MorphologyCard(
+    word: VocabularyWord,
     modifier: Modifier = Modifier
 ) {
-    val morphologyText = word?.morphology?.ifBlank { morphologyForWord(word) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val previewWordCree = word?.cree ?: "Morphology Preview"
-            val previewWordEng = word?.english ?: ""
-            val primaryText = if (primaryLanguage == DisplayLanguage.English && word != null) previewWordEng.replaceFirstChar { it.uppercase() } else previewWordCree
-            val secondaryText = if (primaryLanguage == DisplayLanguage.English && word != null) previewWordCree else previewWordEng
-
-            Text(
-                text = "Morphology Preview",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = primaryText,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (inlineTranslations && secondaryText.isNotBlank()) {
-                Text(
-                    text = secondaryText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (word.detailedMorphology.stem.isNotBlank()) {
+                MorphologyRow(
+                    label = "stem:",
+                    value = word.detailedMorphology.stem,
+                    description = if (word.detailedMorphology.stemMeaning.isNotBlank()) "“${word.detailedMorphology.stemMeaning}”" else ""
                 )
             }
-            Text(
-                text = morphologyText ?: "Tap a word to view its morphology.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (word != null) {
-                        MorphologyRow(label = "word:", value = word.cree, description = word.english)
-                        MorphologyRow(label = "analysis:", value = morphologyText.orEmpty(), description = "")
-                    } else {
-                        MorphologyRow(label = "tip:", value = "Tap any word", description = "to inspect its morphology.")
-                        MorphologyRow(label = "mode:", value = "Expert setting", description = "controls whether this preview appears.")
-                    }
-                }
+            if (word.detailedMorphology.suffix.isNotBlank()) {
+                MorphologyRow(
+                    label = "suffix:",
+                    value = word.detailedMorphology.suffix,
+                    description = if (word.detailedMorphology.suffixMeaning.isNotBlank()) "“${word.detailedMorphology.suffixMeaning}”" else ""
+                )
+            }
+            if (word.detailedMorphology.grammaticalForm.isNotBlank()) {
+                MorphologyRow(
+                    label = "grammatical form:",
+                    value = word.detailedMorphology.grammaticalForm,
+                    description = ""
+                )
             }
         }
     }
@@ -1684,19 +1619,23 @@ fun MorphologyRow(label: String, value: String, description: String) {
             text = label,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(110.dp)
+            modifier = Modifier.width(130.dp)
         )
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (description.isNotBlank()) {
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
             }
         }
@@ -1752,7 +1691,7 @@ fun WordSemanticMapCard(
         relatedWords.mapIndexed { index, relatedWord ->
             SemanticRelationNode(
                 word = relatedWord,
-                position = semanticMapPosition(index, relatedWords.size),
+                position = semanticMapPosition(index),
                 accent = semanticMapAccent(index)
             )
         }
@@ -1977,7 +1916,7 @@ private val semanticMapAccentPalette = listOf(
     androidx.compose.ui.graphics.Color(0xFF2563EB)
 )
 
-private fun semanticMapPosition(index: Int, total: Int): SemanticMapNodePosition {
+private fun semanticMapPosition(index: Int): SemanticMapNodePosition {
     val positions = listOf(
         SemanticMapNodePosition(44.dp, 24.dp),
         SemanticMapNodePosition(318.dp, 24.dp),
@@ -2100,5 +2039,155 @@ fun EmptyState(title: String, body: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun WordDetailsScreenPreview() {
+    MyVocabularyTheme {
+        val word = vocabularyWords.first { it.id == "wapos" }
+        val relatedWords = word.relatedWordIds.mapNotNull { id ->
+            vocabularyWords.find { it.id == id }
+        }
+        WordDetailsScreen(
+            word = word,
+            relatedWords = relatedWords,
+            showMorphology = true,
+            primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true,
+            onBack = {},
+            onWordClick = {},
+            onConnectionsClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun HomeScreenPreview() {
+    MyVocabularyTheme {
+        HomeScreen(
+            query = "",
+            onQueryChange = {},
+            onSearch = {},
+            wordOfDayPages = vocabularyWords.take(3),
+            recentSearches = listOf("Wâpos", "Rain", "Miko"),
+            onRecentSearchClick = {},
+            onDeleteRecentSearch = {},
+            onSeeAllRecentSearches = {},
+            categories = suggestedCategories,
+            onCategoryClick = {},
+            onWordClick = {},
+            showEntryCounts = true,
+            primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun RecentSearchesScreenPreview() {
+    MyVocabularyTheme {
+        RecentSearchesScreen(
+            recentSearches = listOf("Wâpos", "Rain", "Heart", "Miko"),
+            onRecentSearchClick = {},
+            onDeleteSelectedSearches = {},
+            onBack = {},
+            primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SearchResultsScreenPreview() {
+    MyVocabularyTheme {
+        SearchResultsScreen(
+            query = "wapos",
+            subjectFilter = SubjectFilter.All,
+            wordTypeFilter = WordTypeFilter.All,
+            sortOption = SortOption.Relevance,
+            inlineTranslations = true,
+            primaryLanguage = DisplayLanguage.Both,
+            onQueryChange = {},
+            onSubjectChange = {},
+            onWordTypeChange = {},
+            onSortChange = {},
+            onResetFilters = {},
+            onBack = {},
+            onWordClick = {},
+            onSubmitSearch = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun CategoriesScreenPreview() {
+    MyVocabularyTheme {
+        CategoriesScreen(
+            query = "",
+            onQueryChange = {},
+            onBackToHome = {},
+            onCategoryClick = {},
+            showEntryCounts = true,
+            primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SemanticMapScreenPreview() {
+    MyVocabularyTheme {
+        val word = vocabularyWords.first { it.id == "wapos" }
+        val relatedWords = word.relatedWordIds.mapNotNull { id ->
+            vocabularyWords.find { it.id == id }
+        }
+        SemanticMapScreen(
+            word = word,
+            relatedWords = relatedWords,
+            showFullSemanticMap = true,
+            primaryLanguage = DisplayLanguage.English,
+            onShowFullSemanticMapChange = {},
+            onBack = {},
+            onWordClick = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SettingsScreenPreview() {
+    MyVocabularyTheme {
+        SettingsScreen(
+            primaryLanguage = DisplayLanguage.English,
+            onPrimaryLanguageChange = {},
+            inlineTranslations = true,
+            onInlineTranslationsChange = {},
+            onOpenExpertMode = {},
+            onSeeRecentSearches = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ExpertModeScreenPreview() {
+    MyVocabularyTheme {
+        ExpertModeScreen(
+            showSemanticLabels = true,
+            onShowSemanticLabelsChange = {},
+            showMorphology = true,
+            onShowMorphologyChange = {},
+            showEntryCounts = true,
+            onShowEntryCountsChange = {},
+            primaryLanguage = DisplayLanguage.English,
+            onBack = {}
+        )
     }
 }

@@ -39,9 +39,6 @@ fun VocabularyApp() {
     var searchWordType by rememberSaveable { mutableStateOf(WordTypeFilter.All) }
     var searchSort by rememberSaveable { mutableStateOf(SortOption.Relevance) }
     var categoryQuery by rememberSaveable { mutableStateOf("") }
-    var categorySubject by rememberSaveable { mutableStateOf(SubjectFilter.All) }
-    var categoryWordType by rememberSaveable { mutableStateOf(WordTypeFilter.All) }
-    var categorySort by rememberSaveable { mutableStateOf(SortOption.Relevance) }
     var recentSearches by rememberSaveable {
         mutableStateOf(listOf("Wâpos", "Mosquito", "Rain", "Wind", "Cloud", "Snow", "Lake", "Fish", "Soup", "Heart"))
     }
@@ -178,19 +175,7 @@ fun VocabularyApp() {
                 composable(Screen.Categories.route) {
                     CategoriesScreen(
                         query = categoryQuery,
-                        subjectFilter = categorySubject,
-                        wordTypeFilter = categoryWordType,
-                        sortOption = categorySort,
                         onQueryChange = { categoryQuery = it },
-                        onSubjectChange = { categorySubject = it },
-                        onWordTypeChange = { categoryWordType = it },
-                        onSortChange = { categorySort = it },
-                        onResetFilters = {
-                            categoryQuery = ""
-                            categorySubject = SubjectFilter.All
-                            categoryWordType = WordTypeFilter.All
-                            categorySort = SortOption.Relevance
-                        },
                         onBackToHome = {
                             navController.popBackStack(Screen.Home.route, inclusive = false)
                         },
@@ -299,7 +284,6 @@ fun VocabularyApp() {
                         showEntryCounts = showEntryCounts,
                         onShowEntryCountsChange = { showEntryCounts = it },
                         primaryLanguage = primaryLanguage,
-                        inlineTranslations = effectiveInlineTranslations,
                         onBack = { navController.popBackStack() }
                     )
                 }
