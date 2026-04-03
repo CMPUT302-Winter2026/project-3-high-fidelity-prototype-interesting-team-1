@@ -16,14 +16,14 @@ enum class Screen(val route: String, val label: String) {
     }
 }
 
-enum class SubjectFilter(val label: String) {
-    All("All"),
-    Animals("Animals"),
-    Body("Body"),
-    Weather("Weather"),
-    Words("Words"),
-    Foods("Foods"),
-    Lands("Lands");
+enum class SubjectFilter(val label: String, val creeLabel: String) {
+    All("All", "Kahkiyaw"),
+    Animals("Animals", "Pisiskiwak"),
+    Body("Body", "Miyaw"),
+    Weather("Weather", "Kîsikâw"),
+    Words("Words", "Pîkiskwêwina"),
+    Foods("Foods", "Mîciwina"),
+    Lands("Lands", "Askiy");
 
     companion object {
         val cycleOrder = entries

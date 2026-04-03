@@ -102,7 +102,9 @@ fun HomeScreen(
     categories: List<CategoryCard>,
     onCategoryClick: (SubjectFilter) -> Unit,
     onWordClick: (String) -> Unit,
-    showEntryCounts: Boolean
+    showEntryCounts: Boolean,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean
 ) {
     val pagerState = rememberPagerState(pageCount = { wordOfDayPages.size })
     var searchToDelete by remember { mutableStateOf<String?>(null) }
@@ -165,6 +167,8 @@ fun HomeScreen(
                     ) { page ->
                         WordOfDayCard(
                             word = wordOfDayPages[page],
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = inlineTranslations,
                             onClick = { onWordClick(wordOfDayPages[page].id) }
                         )
                     }
@@ -203,6 +207,8 @@ fun HomeScreen(
                             modifier = Modifier.width(150.dp).height(150.dp),
                             showDescription = false,
                             showEntryCount = showEntryCounts,
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = inlineTranslations,
                             onClick = { onCategoryClick(category.subject) }
                         )
                     }
@@ -229,6 +235,14 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             recentSearches.take(10).forEach { term ->
+                                val matchedWord = remember(term) {
+                                    vocabularyWords.firstOrNull {
+                                        it.cree.equals(term, ignoreCase = true) ||
+                                        it.english.equals(term, ignoreCase = true) ||
+                                        it.id.equals(term, ignoreCase = true)
+                                    }
+                                }
+
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -238,12 +252,35 @@ fun HomeScreen(
                                         onLongClick = { searchToDelete = term }
                                     )
                                 ) {
-                                    Text(
-                                        text = term,
+                                    Row(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        maxLines = 1
-                                    )
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        if (matchedWord != null) {
+                                            val primary = if (primaryLanguage == DisplayLanguage.English) matchedWord.english.replaceFirstChar { it.uppercase() } else matchedWord.cree
+                                            val secondary = if (primaryLanguage == DisplayLanguage.English) matchedWord.cree else matchedWord.english
+                                            Text(
+                                                text = primary,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                maxLines = 1
+                                            )
+                                            if (inlineTranslations) {
+                                                Text(
+                                                    text = secondary,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        } else {
+                                            Text(
+                                                text = term,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -274,7 +311,9 @@ fun RecentSearchesScreen(
     recentSearches: List<String>,
     onRecentSearchClick: (String) -> Unit,
     onDeleteSelectedSearches: (List<String>) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    primaryLanguage: DisplayLanguage = DisplayLanguage.Both,
+    inlineTranslations: Boolean = false
 ) {
     var selectedSearches by remember { mutableStateOf(setOf<String>()) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -336,9 +375,17 @@ fun RecentSearchesScreen(
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(recentSearches) { search ->
+                items(recentSearches) { term ->
+                    val matchedWord = remember(term) {
+                        vocabularyWords.firstOrNull {
+                            it.cree.equals(term, ignoreCase = true) ||
+                            it.english.equals(term, ignoreCase = true) ||
+                            it.id.equals(term, ignoreCase = true)
+                        }
+                    }
+                    
                     Surface(
-                        onClick = { onRecentSearchClick(search) },
+                        onClick = { onRecentSearchClick(term) },
                         modifier = Modifier.fillMaxWidth(),
                         color = androidx.compose.ui.graphics.Color.Transparent
                     ) {
@@ -347,22 +394,43 @@ fun RecentSearchesScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
-                                checked = search in selectedSearches,
+                                checked = term in selectedSearches,
                                 onCheckedChange = { checked ->
                                     selectedSearches = if (checked) {
-                                        selectedSearches + search
+                                        selectedSearches + term
                                     } else {
-                                        selectedSearches - search
+                                        selectedSearches - term
                                     }
                                 },
                                 colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = search,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (matchedWord != null) {
+                                    val primary = if (primaryLanguage == DisplayLanguage.English) matchedWord.english.replaceFirstChar { it.uppercase() } else matchedWord.cree
+                                    val secondary = if (primaryLanguage == DisplayLanguage.English) matchedWord.cree else matchedWord.english
+                                    Text(
+                                        text = primary,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    if (inlineTranslations) {
+                                        Text(
+                                            text = secondary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = term,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                            }
                         }
                     }
                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -379,6 +447,7 @@ fun SearchResultsScreen(
     wordTypeFilter: WordTypeFilter,
     sortOption: SortOption,
     inlineTranslations: Boolean,
+    primaryLanguage: DisplayLanguage,
     onQueryChange: (String) -> Unit,
     onSubjectChange: (SubjectFilter) -> Unit,
     onWordTypeChange: (WordTypeFilter) -> Unit,
@@ -453,6 +522,7 @@ fun SearchResultsScreen(
                 items(filteredWords, key = { it.id }) { word ->
                     SearchResultItem(
                         word = word,
+                        primaryLanguage = primaryLanguage,
                         showInlineTranslation = inlineTranslations,
                         onClick = { onWordClick(word.id) }
                     )
@@ -475,7 +545,9 @@ fun CategoriesScreen(
     onResetFilters: () -> Unit,
     onBackToHome: () -> Unit,
     onCategoryClick: (CategoryCard) -> Unit,
-    showEntryCounts: Boolean
+    showEntryCounts: Boolean,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean
 ) {
     val normalizedQuery = query.trim().lowercase()
     val queryTokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -540,6 +612,8 @@ fun CategoriesScreen(
                                 .width(180.dp)
                                 .height(220.dp),
                             showEntryCount = showEntryCounts,
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = inlineTranslations,
                             onClick = { onCategoryClick(category) }
                         )
                     }
@@ -554,6 +628,8 @@ fun WordDetailsScreen(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
     showMorphology: Boolean,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit,
     onConnectionsClick: () -> Unit
@@ -582,16 +658,20 @@ fun WordDetailsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+                        val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
                         Text(
-                            text = word.cree,
+                            text = primaryText,
                             style = MaterialTheme.typography.headlineLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = word.english,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (inlineTranslations) {
+                            Text(
+                                text = secondaryText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -648,6 +728,8 @@ fun WordDetailsScreen(
                 item {
                     MorphologyPreviewCard(
                         word = word,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = inlineTranslations,
                         modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
                     )
                 }
@@ -655,7 +737,12 @@ fun WordDetailsScreen(
             item {
                 SectionTitle("Related Words")
                 relatedWords.forEach { relatedWord ->
-                    RelatedWordItem(word = relatedWord, onClick = { onWordClick(relatedWord.id) })
+                    RelatedWordItem(
+                        word = relatedWord,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = inlineTranslations,
+                        onClick = { onWordClick(relatedWord.id) }
+                    )
                 }
             }
             item {
@@ -672,6 +759,7 @@ fun SemanticMapScreen(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
     showFullSemanticMap: Boolean,
+    primaryLanguage: DisplayLanguage,
     onShowFullSemanticMapChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit
@@ -687,7 +775,8 @@ fun SemanticMapScreen(
                 WordSemanticMapCard(
                     word = word,
                     relatedWords = relatedWords,
-                    showEnglishMeanings = showFullSemanticMap,
+                    showSecondaryMeanings = showFullSemanticMap,
+                    primaryLanguage = primaryLanguage,
                     onWordClick = onWordClick
                 )
             }
@@ -734,7 +823,7 @@ fun SemanticMapScreen(
 @Composable
 fun SettingsScreen(
     primaryLanguage: DisplayLanguage,
-    onPrimaryLanguageClick: () -> Unit,
+    onPrimaryLanguageChange: (DisplayLanguage) -> Unit,
     inlineTranslations: Boolean,
     onInlineTranslationsChange: (Boolean) -> Unit,
     onOpenExpertMode: () -> Unit,
@@ -749,26 +838,46 @@ fun SettingsScreen(
             item { ScreenHeader(title = "Settings") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SettingsRow(
-                        title = "Expert Mode",
-                        subtitle = "Advanced language tools",
-                        onClick = onOpenExpertMode,
-                        trailing = { Text("›", style = MaterialTheme.typography.headlineSmall) }
-                    )
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionTitle("General Settings")
                     SettingsRow(
                         title = "Primary Language",
                         subtitle = "Choose your primary language for vocabulary.",
                         trailing = {
-                            CycleChip(
-                                label = "Primary Language",
-                                value = primaryLanguage.label,
-                                onClick = onPrimaryLanguageClick
-                            )
+                            var expanded by remember { mutableStateOf(false) }
+                            Box {
+                                Surface(
+                                    onClick = { expanded = true },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = primaryLanguage.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    DisplayLanguage.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option.label) },
+                                            onClick = {
+                                                onPrimaryLanguageChange(option)
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     )
                     SettingsRow(
@@ -776,8 +885,9 @@ fun SettingsScreen(
                         subtitle = "Show translations inline next to vocabulary.",
                         trailing = {
                             Switch(
-                                checked = inlineTranslations,
+                                checked = if (primaryLanguage == DisplayLanguage.Both) true else inlineTranslations,
                                 onCheckedChange = onInlineTranslationsChange,
+                                enabled = primaryLanguage != DisplayLanguage.Both,
                                 colors = appSwitchColors()
                             )
                         }
@@ -786,6 +896,17 @@ fun SettingsScreen(
                         title = "Recent Searches",
                         subtitle = "View and manage your search history",
                         onClick = onSeeRecentSearches,
+                        trailing = { Text("›", style = MaterialTheme.typography.headlineSmall) }
+                    )
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionTitle("Expert Settings")
+                    SettingsRow(
+                        title = "Expert Mode",
+                        subtitle = "Advanced language tools",
+                        onClick = onOpenExpertMode,
                         trailing = { Text("›", style = MaterialTheme.typography.headlineSmall) }
                     )
                 }
@@ -802,6 +923,8 @@ fun ExpertModeScreen(
     onShowMorphologyChange: (Boolean) -> Unit,
     showEntryCounts: Boolean,
     onShowEntryCountsChange: (Boolean) -> Unit,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
     onBack: () -> Unit
 ) {
     val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
@@ -847,11 +970,16 @@ fun ExpertModeScreen(
                             )
                         }
                     )
-                    MorphologyPreviewCard(word = previewWord, modifier = Modifier.padding(start = 16.dp))
+                    MorphologyPreviewCard(
+                        word = previewWord,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = inlineTranslations,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                     
                     SettingsRow(
                         title = "Full Semantic Map",
-                        subtitle = "Show English meanings below map nodes.",
+                        subtitle = "Show secondary meanings below map nodes.",
                         trailing = {
                             Switch(
                                 checked = showSemanticLabels,
@@ -860,7 +988,11 @@ fun ExpertModeScreen(
                             )
                         }
                     )
-                    SemanticMapPreviewCard(showSemanticLabels = showSemanticLabels, modifier = Modifier.padding(start = 16.dp))
+                    SemanticMapPreviewCard(
+                        showSemanticLabels = showSemanticLabels,
+                        primaryLanguage = primaryLanguage,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
                 }
             }
         }
@@ -986,7 +1118,12 @@ fun SearchField(
 }
 
 @Composable
-fun WordOfDayCard(word: VocabularyWord, onClick: () -> Unit) {
+fun WordOfDayCard(
+    word: VocabularyWord,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
+    onClick: () -> Unit
+) {
     Card(
         onClick = onClick,
         modifier = Modifier
@@ -1003,16 +1140,21 @@ fun WordOfDayCard(word: VocabularyWord, onClick: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Column {
+                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+                
                 Text(
-                    text = word.cree,
+                    text = primaryText,
                     style = MaterialTheme.typography.displayLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = word.english,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (inlineTranslations) {
+                    Text(
+                        text = secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -1061,7 +1203,12 @@ fun CategoryListItem(category: CategoryCard, modifier: Modifier = Modifier, onCl
 }
 
 @Composable
-fun SearchResultItem(word: VocabularyWord, showInlineTranslation: Boolean, onClick: () -> Unit) {
+fun SearchResultItem(
+    word: VocabularyWord,
+    primaryLanguage: DisplayLanguage,
+    showInlineTranslation: Boolean,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(18.dp),
@@ -1086,14 +1233,17 @@ fun SearchResultItem(word: VocabularyWord, showInlineTranslation: Boolean, onCli
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
+                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
+
                 Text(
-                    text = word.cree,
+                    text = primaryText,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (showInlineTranslation) {
                     Text(
-                        text = word.english.replaceFirstChar { it.uppercase() },
+                        text = secondaryText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1122,6 +1272,8 @@ fun CategoryGridCard(
     modifier: Modifier = Modifier,
     showDescription: Boolean = true,
     showEntryCount: Boolean = true,
+    primaryLanguage: DisplayLanguage = DisplayLanguage.Both,
+    inlineTranslations: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
@@ -1137,8 +1289,9 @@ fun CategoryGridCard(
                 .padding(12.dp)
         ) {
             if (showEntryCount) {
+                val unit = if (category.count == 1) "entry" else "entries"
                 Text(
-                    text = category.count.toString(),
+                    text = "${category.count} $unit",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -1158,11 +1311,21 @@ fun CategoryGridCard(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
+            val primaryText = if (primaryLanguage == DisplayLanguage.English) category.title else category.subject.creeLabel
+            val secondaryText = if (primaryLanguage == DisplayLanguage.English) category.subject.creeLabel else category.title
+
             Text(
-                text = category.title,
+                text = primaryText,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            if (inlineTranslations) {
+                Text(
+                    text = secondaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
             if (showDescription) {
                 Text(
                     text = category.description,
@@ -1177,7 +1340,12 @@ fun CategoryGridCard(
 }
 
 @Composable
-fun RelatedWordItem(word: VocabularyWord, onClick: () -> Unit) {
+fun RelatedWordItem(
+    word: VocabularyWord,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(18.dp),
@@ -1202,16 +1370,21 @@ fun RelatedWordItem(word: VocabularyWord, onClick: () -> Unit) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
+                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
+
                 Text(
-                    text = word.cree,
+                    text = primaryText,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = word.english,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (inlineTranslations) {
+                    Text(
+                        text = secondaryText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Icon(
                 imageVector = Icons.Filled.ArrowForward,
@@ -1442,7 +1615,12 @@ private fun appSwitchColors() = SwitchDefaults.colors(
 )
 
 @Composable
-fun MorphologyPreviewCard(word: VocabularyWord? = null, modifier: Modifier = Modifier) {
+fun MorphologyPreviewCard(
+    word: VocabularyWord? = null,
+    primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
+    modifier: Modifier = Modifier
+) {
     val morphologyText = word?.morphology?.ifBlank { morphologyForWord(word) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1450,19 +1628,24 @@ fun MorphologyPreviewCard(word: VocabularyWord? = null, modifier: Modifier = Mod
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val previewWordCree = word?.cree ?: "Morphology Preview"
+            val previewWordEng = word?.english ?: ""
+            val primaryText = if (primaryLanguage == DisplayLanguage.English && word != null) previewWordEng.replaceFirstChar { it.uppercase() } else previewWordCree
+            val secondaryText = if (primaryLanguage == DisplayLanguage.English && word != null) previewWordCree else previewWordEng
+
             Text(
                 text = "Morphology Preview",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = word?.cree ?: "Morphology Preview",
+                text = primaryText,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            if (word != null) {
+            if (inlineTranslations && secondaryText.isNotBlank()) {
                 Text(
-                    text = word.english,
+                    text = secondaryText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1523,6 +1706,7 @@ fun MorphologyRow(label: String, value: String, description: String) {
 @Composable
 fun SemanticMapPreviewCard(
     showSemanticLabels: Boolean = false,
+    primaryLanguage: DisplayLanguage,
     modifier: Modifier = Modifier,
     onWordClick: (String) -> Unit = {}
 ) {
@@ -1534,7 +1718,8 @@ fun SemanticMapPreviewCard(
         WordSemanticMapCard(
             word = previewWord,
             relatedWords = relatedWords,
-            showEnglishMeanings = showSemanticLabels,
+            showSecondaryMeanings = showSemanticLabels,
+            primaryLanguage = primaryLanguage,
             title = "Semantic Map Preview",
             onWordClick = onWordClick
         )
@@ -1545,7 +1730,8 @@ fun SemanticMapPreviewCard(
 fun WordSemanticMapCard(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
-    showEnglishMeanings: Boolean,
+    showSecondaryMeanings: Boolean,
+    primaryLanguage: DisplayLanguage,
     title: String = "Semantic Map",
     onWordClick: (String) -> Unit
 ) {
@@ -1578,18 +1764,21 @@ fun WordSemanticMapCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val hubPrimary = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+            val hubSecondary = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = word.cree,
+                text = hubPrimary,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = word.english,
+                text = hubSecondary,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1646,9 +1835,9 @@ fun WordSemanticMapCard(
                             relationSize = relationSize
                         )
                         SemanticHub(
-                            label = word.cree,
-                            subtitle = word.english,
-                            showSubtitle = showEnglishMeanings,
+                            label = hubPrimary,
+                            subtitle = hubSecondary,
+                            showSubtitle = showSecondaryMeanings,
                             modifier = Modifier
                                 .offset(x = hubPosition.x, y = hubPosition.y)
                                 .size(hubSize.width, hubSize.height),
@@ -1658,7 +1847,8 @@ fun WordSemanticMapCard(
                             SemanticRelationCard(
                                 word = relation.word,
                                 accent = relation.accent,
-                                showEnglishMeanings = showEnglishMeanings,
+                                showSecondaryMeanings = showSecondaryMeanings,
+                                primaryLanguage = primaryLanguage,
                                 modifier = Modifier
                                     .offset(x = relation.position.x, y = relation.position.y)
                                     .size(relationSize.width, relationSize.height),
@@ -1712,7 +1902,8 @@ private fun SemanticHub(
 private fun SemanticRelationCard(
     word: VocabularyWord,
     accent: androidx.compose.ui.graphics.Color,
-    showEnglishMeanings: Boolean,
+    showSecondaryMeanings: Boolean,
+    primaryLanguage: DisplayLanguage,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -1742,16 +1933,19 @@ private fun SemanticRelationCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
+                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
+                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
+
                 Text(
-                    text = word.cree,
+                    text = primaryText,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (showEnglishMeanings) {
+                if (showSecondaryMeanings) {
                     Text(
-                        text = word.english,
+                        text = secondaryText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,

@@ -51,6 +51,8 @@ fun VocabularyApp() {
     var showSemanticLabels by rememberSaveable { mutableStateOf(true) }
     var showMorphology by rememberSaveable { mutableStateOf(true) }
 
+    val effectiveInlineTranslations = primaryLanguage == DisplayLanguage.Both || inlineTranslations
+
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Screen.Home.route
@@ -154,7 +156,9 @@ fun VocabularyApp() {
                             openTopLevel(Screen.Search)
                         },
                         onWordClick = openWord,
-                        showEntryCounts = showEntryCounts
+                        showEntryCounts = showEntryCounts,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = effectiveInlineTranslations
                     )
                 }
 
@@ -165,7 +169,9 @@ fun VocabularyApp() {
                         onDeleteSelectedSearches = { selected ->
                             recentSearches = recentSearches.filterNot { it in selected }
                         },
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = effectiveInlineTranslations
                     )
                 }
 
@@ -195,7 +201,9 @@ fun VocabularyApp() {
                             searchQuery = category.title
                             openTopLevel(Screen.Search)
                         },
-                        showEntryCounts = showEntryCounts
+                        showEntryCounts = showEntryCounts,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = effectiveInlineTranslations
                     )
                 }
 
@@ -205,7 +213,8 @@ fun VocabularyApp() {
                         subjectFilter = searchSubject,
                         wordTypeFilter = searchWordType,
                         sortOption = searchSort,
-                        inlineTranslations = inlineTranslations,
+                        inlineTranslations = effectiveInlineTranslations,
+                        primaryLanguage = primaryLanguage,
                         onQueryChange = { searchQuery = it },
                         onSubjectChange = { searchSubject = it },
                         onWordTypeChange = { searchWordType = it },
@@ -234,6 +243,8 @@ fun VocabularyApp() {
                             vocabularyWords.firstOrNull { it.id == id }
                         },
                         showMorphology = showMorphology,
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = effectiveInlineTranslations,
                         onBack = { navController.popBackStack() },
                         onWordClick = openWord,
                         onConnectionsClick = {
@@ -255,6 +266,7 @@ fun VocabularyApp() {
                             vocabularyWords.firstOrNull { it.id == id }
                         },
                         showFullSemanticMap = showSemanticLabels,
+                        primaryLanguage = primaryLanguage,
                         onShowFullSemanticMapChange = { showSemanticLabels = it },
                         onBack = { navController.popBackStack() },
                         onWordClick = openWord
@@ -264,8 +276,8 @@ fun VocabularyApp() {
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         primaryLanguage = primaryLanguage,
-                        onPrimaryLanguageClick = {
-                            primaryLanguage = nextCycleValue(primaryLanguage, DisplayLanguage.cycleOrder) as DisplayLanguage
+                        onPrimaryLanguageChange = { newLang ->
+                            primaryLanguage = newLang
                         },
                         inlineTranslations = inlineTranslations,
                         onInlineTranslationsChange = { inlineTranslations = it },
@@ -286,6 +298,8 @@ fun VocabularyApp() {
                         onShowMorphologyChange = { showMorphology = it },
                         showEntryCounts = showEntryCounts,
                         onShowEntryCountsChange = { showEntryCounts = it },
+                        primaryLanguage = primaryLanguage,
+                        inlineTranslations = effectiveInlineTranslations,
                         onBack = { navController.popBackStack() }
                     )
                 }
