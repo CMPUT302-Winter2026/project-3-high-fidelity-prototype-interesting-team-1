@@ -169,7 +169,7 @@ fun HomeScreen(
                         onSearch = onSearch
                     )
                     Spacer(modifier = Modifier.height(32.dp))
-                    SectionTitle("Word of the Day")
+                    SectionTitle("Words of the Day")
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalPager(
                         state = pagerState,
@@ -551,34 +551,73 @@ enum class CategorySort {
 
 @Composable
 fun CategoriesScreen(
+    resetKey: Int = 0,
     query: String,
     onQueryChange: (String) -> Unit,
     onBackToHome: () -> Unit,
-    onCategoryClick: (CategoryCard) -> Unit,
+    onCategoryClick: (CategoryCard, WordTypeFilter, String) -> Unit,
     showEntryCounts: Boolean,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean
 ) {
-    var sortOrder by remember { mutableStateOf(CategorySort.AlphabeticalAZ) }
-    var wordTypeFilter by remember { mutableStateOf(WordTypeFilter.All) }
-    
-    val categoryResults = remember(query, sortOrder, primaryLanguage) {
-        val normalizedQuery = query.trim().lowercase()
-        val queryTokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
-        
-        val filtered = suggestedCategories.filter {
-            normalizedQuery.isBlank() ||
-                it.title.contains(normalizedQuery, ignoreCase = true) ||
-                it.description.contains(normalizedQuery, ignoreCase = true) ||
-                queryTokens.all { token ->
-                    it.title.contains(token, ignoreCase = true) ||
-                        it.description.contains(token, ignoreCase = true)
+    var sortOrder by remember(resetKey) { mutableStateOf(CategorySort.AlphabeticalAZ) }
+    var wordTypeFilter by remember(resetKey) { mutableStateOf(WordTypeFilter.All) }
+    val normalizedQuery = query.trim()
+
+    data class CategorySearchResult(
+        val category: CategoryCard,
+        val carriedQuery: String
+    )
+
+    val categoryResults = remember(query, sortOrder, primaryLanguage, wordTypeFilter) {
+        val normalizedQueryLower = normalizedQuery.lowercase()
+        val queryTokens = normalizedQueryLower.split(Regex("\\s+")).filter { it.isNotBlank() }
+
+        val categoriesWithCounts = suggestedCategories.mapNotNull { category ->
+            val typeFilteredWords = vocabularyWords.filter { word ->
+                word.subject == category.subject &&
+                    (wordTypeFilter == WordTypeFilter.All ||
+                        word.partOfSpeech.equals(wordTypeFilter.label, ignoreCase = true))
+            }
+            val matchingWordCount = if (normalizedQueryLower.isBlank()) {
+                typeFilteredWords.size
+            } else {
+                typeFilteredWords.count { word ->
+                    word.matches(normalizedQueryLower, category.subject, wordTypeFilter)
                 }
+            }
+            val categoryTextMatches = normalizedQueryLower.isBlank() ||
+                category.title.contains(normalizedQueryLower, ignoreCase = true) ||
+                category.description.contains(normalizedQueryLower, ignoreCase = true) ||
+                queryTokens.all { token ->
+                    category.title.contains(token, ignoreCase = true) ||
+                        category.description.contains(token, ignoreCase = true)
+                }
+            val visible = if (normalizedQueryLower.isBlank()) {
+                typeFilteredWords.isNotEmpty()
+            } else {
+                matchingWordCount > 0 || categoryTextMatches
+            }
+
+            if (!visible) {
+                null
+            } else {
+                CategorySearchResult(
+                    category = category.copy(
+                        count = if (matchingWordCount > 0) matchingWordCount else typeFilteredWords.size
+                    ),
+                    carriedQuery = if (matchingWordCount > 0) normalizedQuery else ""
+                )
+            }
         }
-        
+
         when (sortOrder) {
-            CategorySort.AlphabeticalAZ -> filtered.sortedBy { if (primaryLanguage == DisplayLanguage.English) it.title else it.subject.creeLabel }
-            CategorySort.AlphabeticalZA -> filtered.sortedByDescending { if (primaryLanguage == DisplayLanguage.English) it.title else it.subject.creeLabel }
+            CategorySort.AlphabeticalAZ -> categoriesWithCounts.sortedBy {
+                if (primaryLanguage == DisplayLanguage.English) it.category.title else it.category.subject.creeLabel
+            }
+            CategorySort.AlphabeticalZA -> categoriesWithCounts.sortedByDescending {
+                if (primaryLanguage == DisplayLanguage.English) it.category.title else it.category.subject.creeLabel
+            }
         }
     }
 
@@ -635,14 +674,15 @@ fun CategoriesScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    rowItems.forEach { category ->
+                    rowItems.forEach { result ->
                         CategoryGridCard(
-                            category = category,
+                            category = result.category,
                             modifier = Modifier.weight(1f).height(180.dp),
+                            showDescription = false,
                             showEntryCount = showEntryCounts,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = inlineTranslations,
-                            onClick = { onCategoryClick(category) }
+                            onClick = { onCategoryClick(result.category, wordTypeFilter, result.carriedQuery) }
                         )
                     }
                     if (rowItems.size == 1) {
@@ -846,7 +886,13 @@ fun SettingsScreen(
                     SectionTitle("General Settings")
                     SettingsRow(
                         title = "Primary Language",
-                        subtitle = "Choose your primary language for vocabulary.",
+                        subtitle = "Both is the default and shows Cree first with English inline. You can switch to Cree only or English only.",
+                        subtitleContent = {
+                            SettingsExampleWord(
+                                primaryText = "Wâpos",
+                                secondaryText = "rabbit"
+                            )
+                        },
                         trailing = {
                             var expanded by remember { mutableStateOf(false) }
                             Box {
@@ -887,7 +933,13 @@ fun SettingsScreen(
                     )
                     SettingsRow(
                         title = "Inline Translations",
-                        subtitle = "Show translations inline next to vocabulary.",
+                        subtitle = "Shows the second language inline with each word. In Both mode, this stays on automatically.",
+                        subtitleContent = {
+                            SettingsExampleWord(
+                                primaryText = "Wâpos",
+                                secondaryText = "rabbit"
+                            )
+                        },
                         trailing = {
                             Switch(
                                 checked = if (primaryLanguage == DisplayLanguage.Both) true else inlineTranslations,
@@ -1505,6 +1557,7 @@ private fun <T> DropdownFilterField(
 fun SettingsRow(
     title: String,
     subtitle: String,
+    subtitleContent: @Composable (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
@@ -1542,9 +1595,32 @@ fun SettingsRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (subtitleContent != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    subtitleContent()
+                }
             }
             trailing?.invoke()
         }
+    }
+}
+
+@Composable
+private fun SettingsExampleWord(
+    primaryText: String,
+    secondaryText: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(
+            text = primaryText,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = secondaryText,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -2327,7 +2403,7 @@ fun SearchResultsScreenPreview() {
             query = "wapos",
             subjectFilter = SubjectFilter.All,
             wordTypeFilter = WordTypeFilter.All,
-            sortOption = SortOption.Relevance,
+            sortOption = SortOption.AlphabeticalAZ,
             inlineTranslations = true,
             primaryLanguage = DisplayLanguage.Both,
             onQueryChange = {},
@@ -2350,7 +2426,7 @@ fun CategoriesScreenPreview() {
             query = "",
             onQueryChange = {},
             onBackToHome = {},
-            onCategoryClick = {},
+            onCategoryClick = { _, _, _ -> },
             showEntryCounts = true,
             primaryLanguage = DisplayLanguage.English,
             inlineTranslations = true

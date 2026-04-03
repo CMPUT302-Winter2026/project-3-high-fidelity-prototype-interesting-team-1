@@ -44,8 +44,8 @@ enum class WordTypeFilter(val label: String) {
 
 enum class SortOption(val label: String) {
     Relevance("Relevance"),
-    Alphabetical("A-Z"),
-    Recent("Recent");
+    AlphabeticalAZ("A-Z"),
+    AlphabeticalZA("Z-A");
 
     companion object {
         val cycleOrder = entries
@@ -1199,8 +1199,8 @@ fun VocabularyWord.matches(query: String, subject: SubjectFilter, wordType: Word
 
 fun sortWords(words: List<VocabularyWord>, sortOption: SortOption): List<VocabularyWord> = when (sortOption) {
     SortOption.Relevance -> words
-    SortOption.Alphabetical -> words.sortedBy { it.english.lowercase() }
-    SortOption.Recent -> words.sortedByDescending { it.id }
+    SortOption.AlphabeticalAZ -> words.sortedBy { it.english.lowercase() }
+    SortOption.AlphabeticalZA -> words.sortedByDescending { it.english.lowercase() }
 }
 
 fun searchWords(
@@ -1211,8 +1211,11 @@ fun searchWords(
     sortOption: SortOption
 ): List<VocabularyWord> {
     val filtered = words.filter { it.matches(query, subject, wordType) }
-    return when (sortOption) {
-        SortOption.Relevance -> filtered.sortedByDescending { it.searchScore(query) }
+    return when {
+        sortOption == SortOption.Relevance && query.isNotBlank() ->
+            filtered.sortedByDescending { it.searchScore(query) }
+        sortOption == SortOption.Relevance ->
+            sortWords(filtered, SortOption.AlphabeticalAZ)
         else -> sortWords(filtered, sortOption)
     }
 }

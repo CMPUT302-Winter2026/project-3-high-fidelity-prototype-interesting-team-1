@@ -15,7 +15,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,8 +38,9 @@ fun VocabularyApp() {
     var searchWordType by rememberSaveable { mutableStateOf(WordTypeFilter.All) }
     var searchSort by rememberSaveable { mutableStateOf(SortOption.Relevance) }
     var categoryQuery by rememberSaveable { mutableStateOf("") }
+    var categoriesResetKey by rememberSaveable { mutableStateOf(0) }
     var recentSearches by rememberSaveable {
-        mutableStateOf(listOf("Wâpos", "Mosquito", "Rain", "Wind", "Cloud", "Snow", "Lake", "Fish", "Soup", "Heart"))
+        mutableStateOf(listOf("wapos", "mosquito", "rain", "wind", "cloud", "snow", "lake", "fish", "soup", "heart"))
     }
     var primaryLanguage by rememberSaveable { mutableStateOf(DisplayLanguage.Both) }
     var inlineTranslations by rememberSaveable { mutableStateOf(false) }
@@ -50,28 +50,34 @@ fun VocabularyApp() {
 
     val effectiveInlineTranslations = primaryLanguage == DisplayLanguage.Both || inlineTranslations
 
-    val wordOfDayPages = remember {
-        wordOfDayIds.mapNotNull { id ->
-            vocabularyWords.firstOrNull { it.id == id }
-        }
-    }
+    var wordOfDayPages by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Screen.Home.route
-    val topLevelRoutes = remember {
-        setOf(Screen.Home.route, Screen.Categories.route, Screen.Settings.route)
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        recentSearches = recentSearches.mapNotNull { term ->
+            vocabularyWords.firstOrNull {
+                it.id.equals(term, ignoreCase = true) ||
+                    it.cree.equals(term, ignoreCase = true) ||
+                    it.english.equals(term, ignoreCase = true)
+            }?.id
+        }.distinct()
     }
-    var lastTopLevelRoute by rememberSaveable { mutableStateOf(Screen.Home.route) }
-    LaunchedEffect(currentRoute) {
-        if (currentRoute in topLevelRoutes) {
-            lastTopLevelRoute = currentRoute
+    androidx.compose.runtime.LaunchedEffect(currentRoute) {
+        if (currentRoute == Screen.Home.route) {
+            wordOfDayPages = vocabularyWords.shuffled().take(3).map { it.id }
         }
     }
-    val currentBottomDestination = when (val route = if (currentRoute in topLevelRoutes) currentRoute else lastTopLevelRoute) {
+    val wordOfDayWords = remember(wordOfDayPages) {
+        wordOfDayPages.mapNotNull { id -> vocabularyWords.firstOrNull { it.id == id } }
+            .ifEmpty { vocabularyWords.take(3) }
+    }
+    val currentBottomDestination = when (currentRoute) {
+        Screen.Home.route -> Screen.Home
         Screen.Categories.route -> Screen.Categories
-        Screen.Settings.route -> Screen.Settings
-        else -> Screen.Home
+        Screen.Settings.route, Screen.Expert.route -> Screen.Settings
+        else -> null
     }
     val navigateToRoute: (String) -> Unit = { route ->
         if (currentRoute != route) {
@@ -81,18 +87,16 @@ fun VocabularyApp() {
         }
     }
 
-    val openSearch: (String, Boolean) -> Unit = { query, rememberRecent ->
+    val openSearch: (String) -> Unit = { query ->
         val normalizedQuery = query.trim()
         searchQuery = normalizedQuery
-        if (rememberRecent && normalizedQuery.isNotBlank()) {
-            recentSearches = listOf(normalizedQuery) + recentSearches.filterNot {
-                it.equals(normalizedQuery, ignoreCase = true)
-            }
-        }
         navigateToRoute(Screen.Search.route)
     }
 
     val openWord: (String) -> Unit = { wordId ->
+        recentSearches = listOf(wordId) + recentSearches.filterNot {
+            it.equals(wordId, ignoreCase = true)
+        }
         val route = Screen.detailsRoute(wordId)
         val currentWordId = backStackEntry?.arguments?.getString("wordId")
         if (currentRoute != Screen.Details.route || currentWordId != wordId) {
@@ -121,11 +125,15 @@ fun VocabularyApp() {
         if (matchedWord != null) {
             openWord(matchedWord.id)
         } else {
-            openSearch(term, false)
+            openSearch(term)
         }
     }
 
     val openTopLevel: (Screen) -> Unit = { destination ->
+        if (destination == Screen.Categories) {
+            categoryQuery = ""
+            categoriesResetKey += 1
+        }
         if (currentRoute != destination.route) {
             navController.navigate(destination.route) {
                 launchSingleTop = true
@@ -159,9 +167,19 @@ fun VocabularyApp() {
                             query = homeQuery,
                             onQueryChange = { homeQuery = it },
                             onSearch = {
-                                openSearch(homeQuery.ifBlank { vocabularyWords.first().cree }, true)
+                                val normalizedHomeQuery = homeQuery.trim()
+                                if (normalizedHomeQuery.isBlank()) {
+                                    searchSubject = SubjectFilter.All
+                                    searchWordType = WordTypeFilter.All
+                                    searchSort = SortOption.AlphabeticalAZ
+                                    searchQuery = ""
+                                    openSearch("")
+                                } else {
+                                    searchSort = SortOption.Relevance
+                                    openSearch(normalizedHomeQuery)
+                                }
                             },
-                            wordOfDayPages = wordOfDayPages,
+                            wordOfDayPages = wordOfDayWords,
                             recentSearches = recentSearches,
                             onRecentSearchClick = onRecentClick,
                             onDeleteRecentSearch = { search ->
@@ -174,9 +192,9 @@ fun VocabularyApp() {
                             onCategoryClick = { subject ->
                                 searchSubject = subject
                                 searchWordType = WordTypeFilter.All
-                                searchSort = SortOption.Relevance
+                                searchSort = SortOption.AlphabeticalAZ
                                 searchQuery = subject.label
-                                openSearch(subject.label, false)
+                                openSearch(subject.label)
                             },
                             onWordClick = openWord,
                             showEntryCounts = showEntryCounts,
@@ -200,17 +218,22 @@ fun VocabularyApp() {
 
                     composable(Screen.Categories.route) {
                         CategoriesScreen(
+                            resetKey = categoriesResetKey,
                             query = categoryQuery,
                             onQueryChange = { categoryQuery = it },
                             onBackToHome = {
                                 navController.popBackStack()
                             },
-                            onCategoryClick = { category ->
+                            onCategoryClick = { category, selectedWordType, carriedQuery ->
                                 searchSubject = category.subject
-                                searchWordType = WordTypeFilter.All
-                                searchSort = SortOption.Relevance
-                                searchQuery = category.title
-                                openSearch(category.title, false)
+                                searchWordType = selectedWordType
+                                searchSort = if (carriedQuery.isNotBlank()) {
+                                    SortOption.Relevance
+                                } else {
+                                    SortOption.AlphabeticalAZ
+                                }
+                                searchQuery = carriedQuery
+                                openSearch(carriedQuery)
                             },
                             showEntryCounts = showEntryCounts,
                             primaryLanguage = primaryLanguage,
@@ -237,7 +260,7 @@ fun VocabularyApp() {
                             },
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord,
-                            onSubmitSearch = { query -> openSearch(query, true) }
+                            onSubmitSearch = { query -> openSearch(query) }
                         )
                     }
 
@@ -320,7 +343,7 @@ fun VocabularyApp() {
 
 @Composable
 fun AppBottomBar(
-    currentDestination: Screen,
+    currentDestination: Screen?,
     onDestinationSelected: (Screen) -> Unit
 ) {
     NavigationBar(
