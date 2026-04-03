@@ -81,6 +81,7 @@ data class VocabularyWord(
     val exampleTitle: String,
     val exampleSentence: String,
     val relatedWordIds: List<String>,
+    val relatedSemanticRelationLabels: List<String> = emptyList(),
     val morphology: String = "",
     val detailedMorphology: DetailedMorphology = DetailedMorphology(),
     val icon: String
@@ -105,7 +106,14 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Nîhka wâpos ôtâ. (I see a rabbit.)",
-        relatedWordIds = listOf("waposis", "wapak", "wapit"),
+        relatedWordIds = listOf("waposis", "wapak", "deer", "fox", "wolf"),
+        relatedSemanticRelationLabels = listOf(
+            "DIMINUTIVE OF",
+            "RELATED ANIMAL",
+            "RELATED ANIMAL",
+            "RELATED ANIMAL",
+            "RELATED ANIMAL"
+        ),
         morphology = "Root form: wapos. Simple noun.",
         detailedMorphology = DetailedMorphology(
             stem = "wâpos-",
@@ -185,7 +193,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Môswa papâs. (A mosquito is buzzing.)",
-        relatedWordIds = listOf("wapos", "rain", "foods"),
+        relatedWordIds = listOf("water", "rain", "fish", "bird", "cloud"),
         morphology = "Root form: moswa. Simple noun.",
         detailedMorphology = DetailedMorphology(
             stem = "môsw-",
@@ -206,7 +214,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Kisâw ohcihî. (It is raining.)",
-        relatedWordIds = listOf("snow", "wind", "cloud"),
+        relatedWordIds = listOf("snow", "wind", "cloud", "thunder", "cold"),
         morphology = "Root form: kisaw. Simple noun.",
         detailedMorphology = DetailedMorphology(
             stem = "kisâw-",
@@ -494,7 +502,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Nipiy kisikaw. (Water is clear.)",
-        relatedWordIds = listOf("eat", "bread", "berry"),
+        relatedWordIds = listOf("fish", "lake", "river", "tea", "soup"),
         morphology = "Root form: nipiy. Simple noun.",
         detailedMorphology = DetailedMorphology(
             stem = "nipiy-",
@@ -713,7 +721,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Nitis kwayask. (A friend is nearby.)",
-        relatedWordIds = listOf("hello", "good", "home"),
+        relatedWordIds = listOf("hello", "thanks", "good", "yes", "no"),
         morphology = "Root form: nitis. Simple noun.",
         detailedMorphology = DetailedMorphology(
             stem = "ni-",
@@ -734,7 +742,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Tansi, nitis! (Hello, friend!)",
-        relatedWordIds = listOf("friend", "home", "camp"),
+        relatedWordIds = listOf("friend", "thanks", "yes", "home", "camp"),
         morphology = "Greeting phrase used to say hello.",
         detailedMorphology = DetailedMorphology(
             stem = "tân-",
@@ -755,7 +763,7 @@ val vocabularyWords = listOf(
         pronunciationLabel = "Play Audio",
         exampleTitle = "Cree Sentence",
         exampleSentence = "Miyo nitis. (A good friend.)",
-        relatedWordIds = listOf("misko", "friend", "hello"),
+        relatedWordIds = listOf("misko", "big", "friend", "thanks", "hello"),
         morphology = "Descriptive adjective meaning \"good\".",
         detailedMorphology = DetailedMorphology(
             stem = "mîyo-",
@@ -763,53 +771,419 @@ val vocabularyWords = listOf(
             grammaticalForm = "adjective • particle"
         ),
         icon = "GD"
+    ),
+    VocabularyWord(
+        id = "fox",
+        cree = "Mahkêsis",
+        english = "fox",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Animals,
+        categoryLabel = "Animals",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mahkêsis pimohtew. (The fox is walking.)",
+        relatedWordIds = listOf("wapos", "deer", "wolf", "bird", "forest"),
+        morphology = "Root form: mahkêsis. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mahkêsis-",
+            stemMeaning = "fox",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "FX"
+    ),
+    VocabularyWord(
+        id = "wolf",
+        cree = "Mahihkan",
+        english = "wolf",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Animals,
+        categoryLabel = "Animals",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mahihkan mahkatew. (The wolf is moving.)",
+        relatedWordIds = listOf("fox", "deer", "wapos", "forest", "travel"),
+        morphology = "Root form: mahihkan. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mahihkan-",
+            stemMeaning = "wolf",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "WF"
+    ),
+    VocabularyWord(
+        id = "beaver",
+        cree = "Amisk",
+        english = "beaver",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Animals,
+        categoryLabel = "Animals",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Amisk nipiyihk ayâw. (The beaver is in the water.)",
+        relatedWordIds = listOf("water", "river", "lake", "mistik", "fish"),
+        morphology = "Root form: amisk. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "amisk-",
+            stemMeaning = "beaver",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "BV"
+    ),
+    VocabularyWord(
+        id = "bird",
+        cree = "Piyêsis",
+        english = "bird",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Animals,
+        categoryLabel = "Animals",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Piyêsis pîhtokêw. (The bird flies in.)",
+        relatedWordIds = listOf("fox", "mistik", "sun", "cloud", "forest"),
+        morphology = "Root form: piyêsis. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "piyêsis-",
+            stemMeaning = "bird",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "BDR"
+    ),
+    VocabularyWord(
+        id = "head",
+        cree = "Mistikwan",
+        english = "head",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Body,
+        categoryLabel = "Body",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mistikwan kîyâm. (The head is still.)",
+        relatedWordIds = listOf("body", "eyes", "nose", "mouth", "hands"),
+        morphology = "Root form: mistikwan. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mistikwan-",
+            stemMeaning = "head",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "HD2"
+    ),
+    VocabularyWord(
+        id = "nose",
+        cree = "Mikot",
+        english = "nose",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Body,
+        categoryLabel = "Body",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mikot mîna. (The nose is small.)",
+        relatedWordIds = listOf("head", "eyes", "mouth", "body", "cold"),
+        morphology = "Root form: mikot. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mikot-",
+            stemMeaning = "nose",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "NS"
+    ),
+    VocabularyWord(
+        id = "mouth",
+        cree = "Mîtôn",
+        english = "mouth",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Body,
+        categoryLabel = "Body",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mîtôn piko. (The mouth is open.)",
+        relatedWordIds = listOf("head", "nose", "eat", "water", "friend"),
+        morphology = "Root form: mîtôn. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "mîtôn-",
+            stemMeaning = "mouth",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "MT"
+    ),
+    VocabularyWord(
+        id = "moon",
+        cree = "Tipiskâwipîsim",
+        english = "moon",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Weather,
+        categoryLabel = "Weather",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Tipiskâwipîsim wâpan. (The moon is visible.)",
+        relatedWordIds = listOf("sun", "cloud", "snow", "cold", "bird"),
+        morphology = "Compound form: tipiskâw + pîsim. Night-sun / moon.",
+        detailedMorphology = DetailedMorphology(
+            stem = "tipiskâwi-pîsim-",
+            stemMeaning = "moon / night sun",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "MN"
+    ),
+    VocabularyWord(
+        id = "thunder",
+        cree = "Animikii",
+        english = "thunder",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Weather,
+        categoryLabel = "Weather",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Animikii pîhtwâw. (Thunder is sounding.)",
+        relatedWordIds = listOf("rain", "cloud", "wind", "sun", "cold"),
+        morphology = "Root form: animikii. Weather noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "animikii-",
+            stemMeaning = "thunder",
+            grammaticalForm = "noun • animate • singular"
+        ),
+        icon = "TH"
+    ),
+    VocabularyWord(
+        id = "cold",
+        cree = "Kisêw",
+        english = "cold",
+        partOfSpeech = "adjective",
+        subject = SubjectFilter.Weather,
+        categoryLabel = "Weather",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Kisêw kisikâw. (It is cold outside.)",
+        relatedWordIds = listOf("snow", "wind", "moon", "rain", "water"),
+        morphology = "Descriptive adjective meaning \"cold\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "kisêw-",
+            stemMeaning = "cold",
+            grammaticalForm = "adjective • descriptive"
+        ),
+        icon = "CD"
+    ),
+    VocabularyWord(
+        id = "meat",
+        cree = "Wiyâs",
+        english = "meat",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Foods,
+        categoryLabel = "Foods",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Wiyâs mîciso. (Eat the meat.)",
+        relatedWordIds = listOf("eat", "soup", "water", "mako", "deer"),
+        morphology = "Root form: wiyâs. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "wiyâs-",
+            stemMeaning = "meat",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "MT2"
+    ),
+    VocabularyWord(
+        id = "tea",
+        cree = "Maskihkîwâpoy",
+        english = "tea",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Foods,
+        categoryLabel = "Foods",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Maskihkîwâpoy minwâsin. (The tea is good.)",
+        relatedWordIds = listOf("water", "bread", "soup", "friend", "thanks"),
+        morphology = "Compound form for tea / medicine drink.",
+        detailedMorphology = DetailedMorphology(
+            stem = "maskihkî-wâpoy-",
+            stemMeaning = "tea / medicine drink",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "TE"
+    ),
+    VocabularyWord(
+        id = "milk",
+        cree = "Totôsâpoy",
+        english = "milk",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Foods,
+        categoryLabel = "Foods",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Totôsâpoy minikwê. (Drink the milk.)",
+        relatedWordIds = listOf("bread", "tea", "water", "eat", "berry"),
+        morphology = "Root form: totôsâpoy. Drink noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "totôsâpoy-",
+            stemMeaning = "milk",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "MK"
+    ),
+    VocabularyWord(
+        id = "river",
+        cree = "Sîpiy",
+        english = "river",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Lands,
+        categoryLabel = "Lands",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Sîpiy pimohtew. (The river keeps moving.)",
+        relatedWordIds = listOf("water", "lake", "fish", "travel", "camp"),
+        morphology = "Root form: sîpiy. Simple noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "sîpiy-",
+            stemMeaning = "river",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "RV"
+    ),
+    VocabularyWord(
+        id = "forest",
+        cree = "Paskwâw",
+        english = "forest",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Lands,
+        categoryLabel = "Lands",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Paskwâw nîsoy. (The forest is quiet.)",
+        relatedWordIds = listOf("mistik", "camp", "river", "fox", "wolf"),
+        morphology = "Root form: paskwâw. Place noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "paskwâw-",
+            stemMeaning = "forest / wooded place",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "FRS"
+    ),
+    VocabularyWord(
+        id = "house",
+        cree = "Wâskahikan",
+        english = "house",
+        partOfSpeech = "noun",
+        subject = SubjectFilter.Lands,
+        categoryLabel = "Lands",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Wâskahikan nisto. (The house is nearby.)",
+        relatedWordIds = listOf("home", "camp", "road", "friend", "travel"),
+        morphology = "Root form: wâskahikan. Place noun.",
+        detailedMorphology = DetailedMorphology(
+            stem = "wâskahikan-",
+            stemMeaning = "house",
+            grammaticalForm = "noun • inanimate • singular"
+        ),
+        icon = "HS"
+    ),
+    VocabularyWord(
+        id = "yes",
+        cree = "Êha",
+        english = "yes",
+        partOfSpeech = "phrase",
+        subject = SubjectFilter.Words,
+        categoryLabel = "Words",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Êha, nitis. (Yes, friend.)",
+        relatedWordIds = listOf("no", "hello", "friend", "thanks", "good"),
+        morphology = "Response particle meaning \"yes\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "êha-",
+            stemMeaning = "yes / affirmation",
+            grammaticalForm = "phrase • response"
+        ),
+        icon = "YS"
+    ),
+    VocabularyWord(
+        id = "no",
+        cree = "Namôya",
+        english = "no",
+        partOfSpeech = "phrase",
+        subject = SubjectFilter.Words,
+        categoryLabel = "Words",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Namôya, namoya nîsta. (No, not me.)",
+        relatedWordIds = listOf("yes", "hello", "friend", "thanks", "good"),
+        morphology = "Response particle meaning \"no\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "namôya-",
+            stemMeaning = "no / negation",
+            grammaticalForm = "phrase • response"
+        ),
+        icon = "NO"
+    ),
+    VocabularyWord(
+        id = "thanks",
+        cree = "Kinanâskomitin",
+        english = "thank you",
+        partOfSpeech = "phrase",
+        subject = SubjectFilter.Words,
+        categoryLabel = "Words",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Kinanâskomitin, nitis. (Thank you, friend.)",
+        relatedWordIds = listOf("friend", "hello", "good", "yes", "home"),
+        morphology = "Polite phrase used to give thanks.",
+        detailedMorphology = DetailedMorphology(
+            stem = "kinanâskomit-",
+            stemMeaning = "thank / be grateful",
+            suffix = "-in",
+            suffixMeaning = "first person object",
+            grammaticalForm = "phrase • politeness"
+        ),
+        icon = "TY"
+    ),
+    VocabularyWord(
+        id = "big",
+        cree = "Mistahi",
+        english = "big",
+        partOfSpeech = "adjective",
+        subject = SubjectFilter.Words,
+        categoryLabel = "Words",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Mistahi mistikw. (The tree is big.)",
+        relatedWordIds = listOf("mako", "mistik", "house", "head", "good"),
+        morphology = "Descriptive adjective meaning \"big\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "mistahi-",
+            stemMeaning = "big / large",
+            grammaticalForm = "adjective • descriptive"
+        ),
+        icon = "BG"
+    ),
+    VocabularyWord(
+        id = "small",
+        cree = "Apisîs",
+        english = "small",
+        partOfSpeech = "adjective",
+        subject = SubjectFilter.Words,
+        categoryLabel = "Words",
+        pronunciationLabel = "Play Audio",
+        exampleTitle = "Cree Sentence",
+        exampleSentence = "Apisîs wâposis. (The small rabbit is tiny.)",
+        relatedWordIds = listOf("waposis", "wapos", "berry", "bird", "good"),
+        morphology = "Descriptive adjective meaning \"small\".",
+        detailedMorphology = DetailedMorphology(
+            stem = "apisîs-",
+            stemMeaning = "small / little",
+            grammaticalForm = "adjective • descriptive"
+        ),
+        icon = "SM"
     )
 )
 
-fun morphologyForWord(word: VocabularyWord): String = when (word.id) {
-    "wapos" -> "Root form: wapos. Simple noun."
-    "waposis" -> "wapos + -is. Diminutive form meaning \"small rabbit\"."
-    "wapak" -> "Root form: wapak. Simple noun."
-    "wapit" -> "Root form: wapitiw. Simple noun."
-    "mosquito" -> "Root form: moswa. Simple noun."
-    "rain" -> "Root form: kisaw. Simple noun."
-    "snow" -> "Root form: mistapew. Simple noun."
-    "wind" -> "Root form: miyow. Simple noun."
-    "cloud" -> "Root form: pikiskwew. Simple noun."
-    "heart" -> "Root form: miyohtaw. Simple noun."
-    "hands" -> "Root form: nipin. Simple noun."
-    "eat" -> "Verb stem: miciso. Action verb meaning \"eat\"."
-    "bread" -> "Root form: pimiwaakan. Simple noun."
-    "travel" -> "Verb stem: pimipahtaw. Action verb meaning \"travel\"."
-    "road" -> "Root form: michif. Simple noun."
-    "body" -> "Root form: nikaw. Simple noun."
-    "eyes" -> "Root form: mitaw. Simple noun."
-    "feet" -> "Root form: mitapan. Simple noun."
-    "berry" -> "Root form: mimin. Simple noun."
-    "water" -> "Root form: nipiy. Simple noun."
-    "home" -> "Root form: kisik. Simple noun."
-    "camp" -> "Root form: miskotahk. Simple noun."
-    "misko" -> "Root form: miskow. Descriptive adjective."
-    "mistik" -> "Root form: mistikw. Simple noun."
-    "mako" -> "Root form: mako. Simple noun."
-    "deer" -> "Root form: atik. Simple noun."
-    "sun" -> "Root form: pisim. Simple noun."
-    "lake" -> "Root form: sakahikan. Simple noun."
-    "fish" -> "Root form: kinoo. Simple noun."
-    "soup" -> "Root form: micim. Simple noun."
-    "friend" -> "Root form: nitis. Simple noun."
-    "hello" -> "Greeting phrase used to say hello."
-    "good" -> "Descriptive adjective meaning \"good\"."
-    else -> "Morphology not available."
-}
+fun morphologyForWord(word: VocabularyWord): String = word.morphology.ifBlank { "Morphology not available." }
 
 val suggestedCategories = listOf(
-    CategoryCard("Animals", "Common animal words", SubjectFilter.Animals, 8, "AN"),
-    CategoryCard("Body", "Words associated with the body", SubjectFilter.Body, 5, "BD"),
-    CategoryCard("Weather", "Learn vocabulary for the weather", SubjectFilter.Weather, 5, "WE"),
-    CategoryCard("Words", "Useful words and phrases", SubjectFilter.Words, 4, "WR"),
-    CategoryCard("Foods", "Food and cooking terms", SubjectFilter.Foods, 5, "FD"),
-    CategoryCard("Lands", "Travel and place names", SubjectFilter.Lands, 6, "LD")
+    CategoryCard("Animals", "Common animal words", SubjectFilter.Animals, vocabularyWords.count { it.subject == SubjectFilter.Animals }, "AN"),
+    CategoryCard("Body", "Words associated with the body", SubjectFilter.Body, vocabularyWords.count { it.subject == SubjectFilter.Body }, "BD"),
+    CategoryCard("Weather", "Learn vocabulary for the weather", SubjectFilter.Weather, vocabularyWords.count { it.subject == SubjectFilter.Weather }, "WE"),
+    CategoryCard("Words", "Useful words and phrases", SubjectFilter.Words, vocabularyWords.count { it.subject == SubjectFilter.Words }, "WR"),
+    CategoryCard("Foods", "Food and cooking terms", SubjectFilter.Foods, vocabularyWords.count { it.subject == SubjectFilter.Foods }, "FD"),
+    CategoryCard("Lands", "Travel and place names", SubjectFilter.Lands, vocabularyWords.count { it.subject == SubjectFilter.Lands }, "LD")
 )
 
 val wordOfDayIds = listOf("wapos", "rain", "heart")

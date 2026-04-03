@@ -12,16 +12,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -45,20 +45,40 @@ fun VocabularyApp() {
     var primaryLanguage by rememberSaveable { mutableStateOf(DisplayLanguage.Both) }
     var inlineTranslations by rememberSaveable { mutableStateOf(false) }
     var showEntryCounts by rememberSaveable { mutableStateOf(true) }
-    var showSemanticLabels by rememberSaveable { mutableStateOf(true) }
-    var showMorphology by rememberSaveable { mutableStateOf(true) }
+    var showSemanticRelationLabels by rememberSaveable { mutableStateOf(false) }
+    var showMorphology by rememberSaveable { mutableStateOf(false) }
 
     val effectiveInlineTranslations = primaryLanguage == DisplayLanguage.Both || inlineTranslations
+
+    val wordOfDayPages = remember {
+        wordOfDayIds.mapNotNull { id ->
+            vocabularyWords.firstOrNull { it.id == id }
+        }
+    }
 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Screen.Home.route
-    val currentBottomDestination = when {
-        currentRoute == Screen.Categories.route -> Screen.Categories
-        currentRoute == Screen.Settings.route -> Screen.Settings
-        currentRoute == Screen.Expert.route -> Screen.Settings
-        currentRoute.startsWith("semantic-map/") -> Screen.Settings
+    val topLevelRoutes = remember {
+        setOf(Screen.Home.route, Screen.Categories.route, Screen.Settings.route)
+    }
+    var lastTopLevelRoute by rememberSaveable { mutableStateOf(Screen.Home.route) }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute in topLevelRoutes) {
+            lastTopLevelRoute = currentRoute
+        }
+    }
+    val currentBottomDestination = when (val route = if (currentRoute in topLevelRoutes) currentRoute else lastTopLevelRoute) {
+        Screen.Categories.route -> Screen.Categories
+        Screen.Settings.route -> Screen.Settings
         else -> Screen.Home
+    }
+    val navigateToRoute: (String) -> Unit = { route ->
+        if (currentRoute != route) {
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+        }
     }
 
     val openSearch: (String, Boolean) -> Unit = { query, rememberRecent ->
@@ -69,17 +89,27 @@ fun VocabularyApp() {
                 it.equals(normalizedQuery, ignoreCase = true)
             }
         }
-        navController.navigate(Screen.Search.route) {
-            launchSingleTop = true
-            restoreState = true
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
+        navigateToRoute(Screen.Search.route)
+    }
+
+    val openWord: (String) -> Unit = { wordId ->
+        val route = Screen.detailsRoute(wordId)
+        val currentWordId = backStackEntry?.arguments?.getString("wordId")
+        if (currentRoute != Screen.Details.route || currentWordId != wordId) {
+            navController.navigate(route) {
+                launchSingleTop = true
             }
         }
     }
 
-    val openWord: (String) -> Unit = { wordId ->
-        navController.navigate(Screen.detailsRoute(wordId))
+    val openSemanticMap: (String) -> Unit = { wordId ->
+        val route = Screen.semanticMapRoute(wordId)
+        val currentWordId = backStackEntry?.arguments?.getString("wordId")
+        if (currentRoute != Screen.SemanticMap.route || currentWordId != wordId) {
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+        }
     }
 
     val onRecentClick: (String) -> Unit = { term ->
@@ -96,196 +126,192 @@ fun VocabularyApp() {
     }
 
     val openTopLevel: (Screen) -> Unit = { destination ->
-        val popped = navController.popBackStack(destination.route, inclusive = false)
-        if (!popped) {
+        if (currentRoute != destination.route) {
             navController.navigate(destination.route) {
                 launchSingleTop = true
-                restoreState = true
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
             }
         }
     }
 
     MyVocabularyTheme(darkTheme = false, dynamicColor = false) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets.safeDrawing,
-            bottomBar = {
-                AppBottomBar(
-                    currentDestination = currentBottomDestination,
-                    onDestinationSelected = openTopLevel
-                )
-            }
-        ) { padding ->
-            NavHost(
-                navController = navController,
-                startDestination = Screen.Home.route,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                composable(Screen.Home.route) {
-                    HomeScreen(
-                        query = homeQuery,
-                        onQueryChange = { homeQuery = it },
-                        onSearch = {
-                            openSearch(homeQuery.ifBlank { vocabularyWords.first().cree }, true)
-                        },
-                        wordOfDayPages = wordOfDayIds.mapNotNull { id ->
-                            vocabularyWords.firstOrNull { it.id == id }
-                        },
-                        recentSearches = recentSearches,
-                        onRecentSearchClick = onRecentClick,
-                        onDeleteRecentSearch = { search ->
-                            recentSearches = recentSearches.filterNot { it == search }
-                        },
-                        onSeeAllRecentSearches = {
-                            navController.navigate(Screen.RecentSearches.route)
-                        },
-                        categories = suggestedCategories,
-                        onCategoryClick = { subject ->
-                            searchSubject = subject
-                            searchWordType = WordTypeFilter.All
-                            searchSort = SortOption.Relevance
-                            searchQuery = subject.label
-                            openTopLevel(Screen.Search)
-                        },
-                        onWordClick = openWord,
-                        showEntryCounts = showEntryCounts,
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = effectiveInlineTranslations
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                bottomBar = {
+                    AppBottomBar(
+                        currentDestination = currentBottomDestination,
+                        onDestinationSelected = openTopLevel
                     )
                 }
+            ) { padding ->
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Home.route,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    composable(Screen.Home.route) {
+                        HomeScreen(
+                            query = homeQuery,
+                            onQueryChange = { homeQuery = it },
+                            onSearch = {
+                                openSearch(homeQuery.ifBlank { vocabularyWords.first().cree }, true)
+                            },
+                            wordOfDayPages = wordOfDayPages,
+                            recentSearches = recentSearches,
+                            onRecentSearchClick = onRecentClick,
+                            onDeleteRecentSearch = { search ->
+                                recentSearches = recentSearches.filterNot { it == search }
+                            },
+                            onSeeAllRecentSearches = {
+                                navigateToRoute(Screen.RecentSearches.route)
+                            },
+                            categories = suggestedCategories,
+                            onCategoryClick = { subject ->
+                                searchSubject = subject
+                                searchWordType = WordTypeFilter.All
+                                searchSort = SortOption.Relevance
+                                searchQuery = subject.label
+                                openSearch(subject.label, false)
+                            },
+                            onWordClick = openWord,
+                            showEntryCounts = showEntryCounts,
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations
+                        )
+                    }
 
-                composable(Screen.RecentSearches.route) {
-                    RecentSearchesScreen(
-                        recentSearches = recentSearches,
-                        onRecentSearchClick = onRecentClick,
-                        onDeleteSelectedSearches = { selected ->
-                            recentSearches = recentSearches.filterNot { it in selected }
-                        },
-                        onBack = { navController.popBackStack() },
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = effectiveInlineTranslations
-                    )
-                }
+                    composable(Screen.RecentSearches.route) {
+                        RecentSearchesScreen(
+                            recentSearches = recentSearches,
+                            onRecentSearchClick = onRecentClick,
+                            onDeleteSelectedSearches = { selected ->
+                                recentSearches = recentSearches.filterNot { it in selected }
+                            },
+                            onBack = { navController.popBackStack() },
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations
+                        )
+                    }
 
-                composable(Screen.Categories.route) {
-                    CategoriesScreen(
-                        query = categoryQuery,
-                        onQueryChange = { categoryQuery = it },
-                        onBackToHome = {
-                            navController.popBackStack(Screen.Home.route, inclusive = false)
-                        },
-                        onCategoryClick = { category ->
-                            searchSubject = category.subject
-                            searchWordType = WordTypeFilter.All
-                            searchSort = SortOption.Relevance
-                            searchQuery = category.title
-                            openTopLevel(Screen.Search)
-                        },
-                        showEntryCounts = showEntryCounts,
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = effectiveInlineTranslations
-                    )
-                }
+                    composable(Screen.Categories.route) {
+                        CategoriesScreen(
+                            query = categoryQuery,
+                            onQueryChange = { categoryQuery = it },
+                            onBackToHome = {
+                                navController.popBackStack()
+                            },
+                            onCategoryClick = { category ->
+                                searchSubject = category.subject
+                                searchWordType = WordTypeFilter.All
+                                searchSort = SortOption.Relevance
+                                searchQuery = category.title
+                                openSearch(category.title, false)
+                            },
+                            showEntryCounts = showEntryCounts,
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations
+                        )
+                    }
 
-                composable(Screen.Search.route) {
-                    SearchResultsScreen(
-                        query = searchQuery,
-                        subjectFilter = searchSubject,
-                        wordTypeFilter = searchWordType,
-                        sortOption = searchSort,
-                        inlineTranslations = effectiveInlineTranslations,
-                        primaryLanguage = primaryLanguage,
-                        onQueryChange = { searchQuery = it },
-                        onSubjectChange = { searchSubject = it },
-                        onWordTypeChange = { searchWordType = it },
-                        onSortChange = { searchSort = it },
-                        onResetFilters = {
-                            searchSubject = SubjectFilter.All
-                            searchWordType = WordTypeFilter.All
-                            searchSort = SortOption.Relevance
-                        },
-                        onBack = { navController.popBackStack() },
-                        onWordClick = openWord,
-                        onSubmitSearch = { query -> openSearch(query, true) }
-                    )
-                }
+                    composable(Screen.Search.route) {
+                        SearchResultsScreen(
+                            query = searchQuery,
+                            subjectFilter = searchSubject,
+                            wordTypeFilter = searchWordType,
+                            sortOption = searchSort,
+                            inlineTranslations = effectiveInlineTranslations,
+                            primaryLanguage = primaryLanguage,
+                            onQueryChange = { searchQuery = it },
+                            onSubjectChange = { searchSubject = it },
+                            onWordTypeChange = { searchWordType = it },
+                            onSortChange = { searchSort = it },
+                            onResetFilters = {
+                                searchSubject = SubjectFilter.All
+                                searchWordType = WordTypeFilter.All
+                                searchSort = SortOption.Relevance
+                            },
+                            onBack = { navController.popBackStack() },
+                            onWordClick = openWord,
+                            onSubmitSearch = { query -> openSearch(query, true) }
+                        )
+                    }
 
-                composable(
-                    route = "details/{wordId}",
-                    arguments = listOf(navArgument("wordId") { type = NavType.StringType })
-                ) { entry ->
-                    val wordId = entry.arguments?.getString("wordId")
-                    val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
+                    composable(
+                        route = "details/{wordId}",
+                        arguments = listOf(navArgument("wordId") { type = NavType.StringType })
+                    ) { entry ->
+                        val wordId = entry.arguments?.getString("wordId")
+                        val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
 
-                    WordDetailsScreen(
-                        word = word,
-                        relatedWords = word.relatedWordIds.mapNotNull { id ->
-                            vocabularyWords.firstOrNull { it.id == id }
-                        },
-                        showMorphology = showMorphology,
-                        primaryLanguage = primaryLanguage,
-                        inlineTranslations = effectiveInlineTranslations,
-                        onBack = { navController.popBackStack() },
-                        onWordClick = openWord,
-                        onConnectionsClick = {
-                            navController.navigate(Screen.semanticMapRoute(word.id))
-                        }
-                    )
-                }
+                        WordDetailsScreen(
+                            word = word,
+                            relatedWords = word.relatedWordIds.mapNotNull { id ->
+                                vocabularyWords.firstOrNull { it.id == id }
+                            },
+                            showMorphology = showMorphology,
+                            primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations,
+                            onBack = { navController.popBackStack() },
+                            onWordClick = openWord,
+                            onConnectionsClick = {
+                                openSemanticMap(word.id)
+                            }
+                        )
+                    }
 
-                composable(
-                    route = Screen.SemanticMap.route,
-                    arguments = listOf(navArgument("wordId") { type = NavType.StringType })
-                ) { entry ->
-                    val wordId = entry.arguments?.getString("wordId")
-                    val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
+                    composable(
+                        route = Screen.SemanticMap.route,
+                        arguments = listOf(navArgument("wordId") { type = NavType.StringType })
+                    ) { entry ->
+                        val wordId = entry.arguments?.getString("wordId")
+                        val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
 
-                    SemanticMapScreen(
-                        word = word,
-                        relatedWords = word.relatedWordIds.mapNotNull { id ->
-                            vocabularyWords.firstOrNull { it.id == id }
-                        },
-                        showFullSemanticMap = showSemanticLabels,
-                        primaryLanguage = primaryLanguage,
-                        onShowFullSemanticMapChange = { showSemanticLabels = it },
-                        onBack = { navController.popBackStack() },
-                        onWordClick = openWord
-                    )
-                }
+                        SemanticMapScreen(
+                            word = word,
+                            relatedWords = word.relatedWordIds.mapNotNull { id ->
+                                vocabularyWords.firstOrNull { it.id == id }
+                            },
+                            showSemanticRelationLabels = showSemanticRelationLabels,
+                            primaryLanguage = primaryLanguage,
+                            onBack = { navController.popBackStack() },
+                            onWordClick = openWord
+                        )
+                    }
 
-                composable(Screen.Settings.route) {
-                    SettingsScreen(
-                        primaryLanguage = primaryLanguage,
-                        onPrimaryLanguageChange = { newLang ->
-                            primaryLanguage = newLang
-                        },
-                        inlineTranslations = inlineTranslations,
-                        onInlineTranslationsChange = { inlineTranslations = it },
-                        onOpenExpertMode = {
-                            navController.navigate(Screen.Expert.route)
-                        },
-                        onSeeRecentSearches = {
-                            navController.navigate(Screen.RecentSearches.route)
-                        }
-                    )
-                }
+                    composable(Screen.Settings.route) {
+                        SettingsScreen(
+                            primaryLanguage = primaryLanguage,
+                            onPrimaryLanguageChange = { newLang ->
+                                primaryLanguage = newLang
+                            },
+                            inlineTranslations = inlineTranslations,
+                            onInlineTranslationsChange = { inlineTranslations = it },
+                            onOpenExpertMode = {
+                                navigateToRoute(Screen.Expert.route)
+                            },
+                            onSeeRecentSearches = {
+                                navigateToRoute(Screen.RecentSearches.route)
+                            }
+                        )
+                    }
 
-                composable(Screen.Expert.route) {
-                    ExpertModeScreen(
-                        showSemanticLabels = showSemanticLabels,
-                        onShowSemanticLabelsChange = { showSemanticLabels = it },
-                        showMorphology = showMorphology,
-                        onShowMorphologyChange = { showMorphology = it },
-                        showEntryCounts = showEntryCounts,
-                        onShowEntryCountsChange = { showEntryCounts = it },
-                        primaryLanguage = primaryLanguage,
-                        onBack = { navController.popBackStack() }
-                    )
+                    composable(Screen.Expert.route) {
+                        ExpertModeScreen(
+                            showSemanticRelationLabels = showSemanticRelationLabels,
+                            onShowSemanticRelationLabelsChange = { showSemanticRelationLabels = it },
+                            showMorphology = showMorphology,
+                            onShowMorphologyChange = { showMorphology = it },
+                            showEntryCounts = showEntryCounts,
+                            onShowEntryCountsChange = { showEntryCounts = it },
+                            primaryLanguage = primaryLanguage,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
@@ -293,13 +319,12 @@ fun VocabularyApp() {
 }
 
 @Composable
-private fun AppBottomBar(
+fun AppBottomBar(
     currentDestination: Screen,
     onDestinationSelected: (Screen) -> Unit
 ) {
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        windowInsets = WindowInsets.safeDrawing
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         bottomNavItems.forEach { item ->
             NavigationBarItem(

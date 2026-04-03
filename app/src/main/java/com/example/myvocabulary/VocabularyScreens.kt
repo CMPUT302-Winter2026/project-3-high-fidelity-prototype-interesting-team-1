@@ -60,26 +60,37 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import android.graphics.Paint as AndroidPaint
+import android.graphics.Typeface
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.max
+import kotlin.math.sin
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.myvocabulary.ui.theme.Accent
@@ -104,7 +115,10 @@ fun HomeScreen(
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean
 ) {
-    val pagerState = rememberPagerState(pageCount = { wordOfDayPages.size })
+    val wordsForPager = remember(wordOfDayPages) {
+        if (wordOfDayPages.isEmpty()) listOf(vocabularyWords.first()) else wordOfDayPages
+    }
+    val pagerState = rememberPagerState(pageCount = { wordsForPager.size })
     var searchToDelete by remember { mutableStateOf<String?>(null) }
 
     if (searchToDelete != null) {
@@ -164,17 +178,17 @@ fun HomeScreen(
                             .height(180.dp)
                     ) { page ->
                         WordOfDayCard(
-                            word = wordOfDayPages[page],
+                            word = wordsForPager[page],
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = inlineTranslations,
-                            onClick = { onWordClick(wordOfDayPages[page].id) }
+                            onClick = { onWordClick(wordsForPager[page].id) }
                         )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        repeat(wordOfDayPages.size) { index ->
+                        repeat(wordsForPager.size) { index ->
                             val selected = index == pagerState.currentPage
                             Box(
                                 modifier = Modifier
@@ -568,8 +582,6 @@ fun CategoriesScreen(
         }
     }
 
-    BackHandler(onBack = onBackToHome)
-
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -776,9 +788,8 @@ fun WordDetailsScreen(
 fun SemanticMapScreen(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
-    showFullSemanticMap: Boolean,
+    showSemanticRelationLabels: Boolean,
     primaryLanguage: DisplayLanguage,
-    onShowFullSemanticMapChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit
 ) {
@@ -793,41 +804,17 @@ fun SemanticMapScreen(
                 WordSemanticMapCard(
                     word = word,
                     relatedWords = relatedWords,
-                    showSecondaryMeanings = showFullSemanticMap,
+                    showSemanticRelationLabels = showSemanticRelationLabels,
+                    showSecondaryMeanings = true,
                     primaryLanguage = primaryLanguage,
+                    expandedMapLayout = false,
+                    mapViewportMaxHeight = 300.dp,
                     onWordClick = onWordClick
                 )
             }
             item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "View Full Semantic Map",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
-                            checked = showFullSemanticMap,
-                            onCheckedChange = onShowFullSemanticMapChange,
-                            colors = appSwitchColors()
-                        )
-                    }
-                }
-            }
-            item {
                 Text(
-                    text = "Tap any node to open that word.",
+                    text = "Tap any node to open that word. Line labels follow Settings → Expert Mode.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
@@ -935,8 +922,8 @@ fun SettingsScreen(
 
 @Composable
 fun ExpertModeScreen(
-    showSemanticLabels: Boolean,
-    onShowSemanticLabelsChange: (Boolean) -> Unit,
+    showSemanticRelationLabels: Boolean,
+    onShowSemanticRelationLabelsChange: (Boolean) -> Unit,
     showMorphology: Boolean,
     onShowMorphologyChange: (Boolean) -> Unit,
     showEntryCounts: Boolean,
@@ -989,22 +976,23 @@ fun ExpertModeScreen(
                     )
                     MorphologyCard(
                         word = previewWord,
+                        title = "Morphology Preview",
                         modifier = Modifier.padding(start = 16.dp)
                     )
                     
                     SettingsRow(
-                        title = "Full Semantic Map",
-                        subtitle = "Show secondary meanings below map nodes.",
+                        title = "Show Semantic Relation labels",
+                        subtitle = "Display relationship labels along the lines in the semantic map.",
                         trailing = {
                             Switch(
-                                checked = showSemanticLabels,
-                                onCheckedChange = onShowSemanticLabelsChange,
+                                checked = showSemanticRelationLabels,
+                                onCheckedChange = onShowSemanticRelationLabelsChange,
                                 colors = appSwitchColors()
                             )
                         }
                     )
                     SemanticMapPreviewCard(
-                        showSemanticLabels = showSemanticLabels,
+                        showSemanticRelationLabels = showSemanticRelationLabels,
                         primaryLanguage = primaryLanguage,
                         modifier = Modifier.padding(start = 16.dp)
                     )
@@ -1016,32 +1004,35 @@ fun ExpertModeScreen(
 
 @Composable
 fun VocabularyScreenSurface(content: @Composable () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
+    val backgroundBrush = remember(colorScheme.background, colorScheme.surface) {
+        Brush.verticalGradient(
+            listOf(
+                colorScheme.background,
+                colorScheme.surface.copy(alpha = 0.96f),
+                colorScheme.background
+            )
+        )
+    }
+    val radialBrush = remember(colorScheme.primary) {
+        Brush.radialGradient(
+            colors = listOf(
+                colorScheme.primary.copy(alpha = 0.08f),
+                androidx.compose.ui.graphics.Color.Transparent
+            ),
+            center = Offset(120f, 140f),
+            radius = 1100f
+        )
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
+            .background(backgroundBrush)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                            androidx.compose.ui.graphics.Color.Transparent
-                        ),
-                        center = Offset(120f, 140f),
-                        radius = 1100f
-                    )
-                )
+                .background(radialBrush)
         )
         content()
     }
@@ -1576,34 +1567,56 @@ private fun appSwitchColors() = SwitchDefaults.colors(
 @Composable
 fun MorphologyCard(
     word: VocabularyWord,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String? = null
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (word.detailedMorphology.stem.isNotBlank()) {
-                MorphologyRow(
-                    label = "stem:",
-                    value = word.detailedMorphology.stem,
-                    description = if (word.detailedMorphology.stemMeaning.isNotBlank()) "“${word.detailedMorphology.stemMeaning}”" else ""
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            title?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-            if (word.detailedMorphology.suffix.isNotBlank()) {
-                MorphologyRow(
-                    label = "suffix:",
-                    value = word.detailedMorphology.suffix,
-                    description = if (word.detailedMorphology.suffixMeaning.isNotBlank()) "“${word.detailedMorphology.suffixMeaning}”" else ""
-                )
-            }
-            if (word.detailedMorphology.grammaticalForm.isNotBlank()) {
-                MorphologyRow(
-                    label = "grammatical form:",
-                    value = word.detailedMorphology.grammaticalForm,
-                    description = ""
-                )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (word.detailedMorphology.stem.isNotBlank()) {
+                        MorphologyRow(
+                            label = "stem:",
+                            value = word.detailedMorphology.stem,
+                            description = if (word.detailedMorphology.stemMeaning.isNotBlank()) "“${word.detailedMorphology.stemMeaning}”" else ""
+                        )
+                    }
+                    if (word.detailedMorphology.suffix.isNotBlank()) {
+                        MorphologyRow(
+                            label = "suffix:",
+                            value = word.detailedMorphology.suffix,
+                            description = if (word.detailedMorphology.suffixMeaning.isNotBlank()) "“${word.detailedMorphology.suffixMeaning}”" else ""
+                        )
+                    }
+                    if (word.detailedMorphology.grammaticalForm.isNotBlank()) {
+                        MorphologyRow(
+                            label = "grammatical form:",
+                            value = word.detailedMorphology.grammaticalForm,
+                            description = ""
+                        )
+                    }
+                }
             }
         }
     }
@@ -1644,7 +1657,7 @@ fun MorphologyRow(label: String, value: String, description: String) {
 
 @Composable
 fun SemanticMapPreviewCard(
-    showSemanticLabels: Boolean = false,
+    showSemanticRelationLabels: Boolean = false,
     primaryLanguage: DisplayLanguage,
     modifier: Modifier = Modifier,
     onWordClick: (String) -> Unit = {}
@@ -1657,10 +1670,99 @@ fun SemanticMapPreviewCard(
         WordSemanticMapCard(
             word = previewWord,
             relatedWords = relatedWords,
-            showSecondaryMeanings = showSemanticLabels,
+            showSemanticRelationLabels = showSemanticRelationLabels,
+            showSecondaryMeanings = true,
             primaryLanguage = primaryLanguage,
             title = "Semantic Map Preview",
+            expandedMapLayout = false,
+            mapViewportMaxHeight = 260.dp,
             onWordClick = onWordClick
+        )
+    }
+}
+
+private data class SemanticMapLayout(
+    val mapWidth: androidx.compose.ui.unit.Dp,
+    val mapHeight: androidx.compose.ui.unit.Dp,
+    val hubPosition: SemanticMapNodePosition,
+    val hubSize: DpSize,
+    val relationSize: DpSize,
+    val relationPositions: List<SemanticMapNodePosition>
+)
+
+@Composable
+private fun rememberSemanticMapLayout(
+    relationCount: Int,
+    expandedMapLayout: Boolean,
+    showSemanticRelationLabels: Boolean
+): SemanticMapLayout {
+    val density = LocalDensity.current
+    val hubSize = DpSize(136.dp, 54.dp)
+    val relationSize = DpSize(118.dp, 54.dp)
+    val baseMapWidth = if (expandedMapLayout) 720.dp else 640.dp
+    val baseMapHeight = if (expandedMapLayout) 520.dp else 460.dp
+    return remember(
+        relationCount,
+        expandedMapLayout,
+        showSemanticRelationLabels,
+        baseMapWidth,
+        baseMapHeight,
+        hubSize,
+        relationSize,
+        density
+    ) {
+        val hubWidth = hubSize.width
+        val hubHeight = hubSize.height
+        val nodeWidth = relationSize.width
+        val nodeHeight = relationSize.height
+        val (relationPositions, mapWidth, mapHeight) = if (relationCount == 0) {
+            Triple(emptyList(), baseMapWidth, baseMapHeight)
+        } else {
+            with(density) {
+                val hubRadiusPx = max(hubWidth.toPx(), hubHeight.toPx()) / 2f
+                val nodeRadiusPx = max(nodeWidth.toPx(), nodeHeight.toPx()) / 2f
+                val radialGapPx = if (showSemanticRelationLabels) 88.dp.toPx() else 32.dp.toPx()
+                val lateralGapPx = if (showSemanticRelationLabels) 44.dp.toPx() else 26.dp.toPx()
+                val chordNeededPx = nodeWidth.toPx() + lateralGapPx
+                val n = relationCount
+                val rFromHub = hubRadiusPx + nodeRadiusPx + radialGapPx
+                val rFromChord = if (n <= 1) {
+                    rFromHub
+                } else {
+                    chordNeededPx / (2f * sin(PI / n).toFloat())
+                }
+                val rPx = max(rFromHub, rFromChord)
+                val edgeMarginPx = 24.dp.toPx()
+                val minSidePx = 2f * (rPx + nodeRadiusPx + edgeMarginPx)
+                val sidePx = maxOf(baseMapWidth.toPx(), baseMapHeight.toPx(), minSidePx)
+                val mapW = sidePx.toDp()
+                val mapH = sidePx.toDp()
+                val hubLeft = (mapW - hubWidth) / 2
+                val hubTop = (mapH - hubHeight) / 2
+                val hubCx = hubLeft + hubWidth / 2
+                val hubCy = hubTop + hubHeight / 2
+                val positions = (0 until relationCount).map { index ->
+                    val angle = -Math.PI / 2 + index * (2 * Math.PI / relationCount)
+                    val cxPx = hubCx.toPx() + rPx * kotlin.math.cos(angle).toFloat()
+                    val cyPx = hubCy.toPx() + rPx * kotlin.math.sin(angle).toFloat()
+                    SemanticMapNodePosition(
+                        x = (cxPx - nodeWidth.toPx() / 2f).toDp(),
+                        y = (cyPx - nodeHeight.toPx() / 2f).toDp()
+                    )
+                }
+                Triple(positions, mapW, mapH)
+            }
+        }
+        val hubLeft = (mapWidth - hubSize.width) / 2
+        val hubTop = (mapHeight - hubSize.height) / 2
+        val hubPosition = SemanticMapNodePosition(hubLeft, hubTop)
+        SemanticMapLayout(
+            mapWidth = mapWidth,
+            mapHeight = mapHeight,
+            hubPosition = hubPosition,
+            hubSize = hubSize,
+            relationSize = relationSize,
+            relationPositions = relationPositions
         )
     }
 }
@@ -1669,30 +1771,59 @@ fun SemanticMapPreviewCard(
 fun WordSemanticMapCard(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
-    showSecondaryMeanings: Boolean,
+    showSemanticRelationLabels: Boolean,
+    showSecondaryMeanings: Boolean = true,
     primaryLanguage: DisplayLanguage,
     title: String = "Semantic Map",
+    expandedMapLayout: Boolean = false,
+    mapViewportMaxHeight: Dp? = null,
     onWordClick: (String) -> Unit
 ) {
     val centerAccent = Accent
-    val hubSize = androidx.compose.ui.unit.DpSize(160.dp, 68.dp)
-    val relationSize = androidx.compose.ui.unit.DpSize(150.dp, 72.dp)
-    val hubPosition = SemanticMapNodePosition(200.dp, 112.dp)
-    val mapSize = androidx.compose.ui.unit.DpSize(560.dp, 360.dp)
-    val minZoom = 0.6f
-    val maxZoom = 2.2f
-    var zoom by remember { mutableStateOf(0.82f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    val layout = rememberSemanticMapLayout(
+        relationCount = relatedWords.size,
+        expandedMapLayout = expandedMapLayout,
+        showSemanticRelationLabels = showSemanticRelationLabels
+    )
+    val mapSize = androidx.compose.ui.unit.DpSize(layout.mapWidth, layout.mapHeight)
+    val viewportHeight = mapViewportMaxHeight?.let { layout.mapHeight.coerceAtMost(it) }
+        ?: layout.mapHeight
+    val minZoom = 0.45f
+    val maxZoom = 2.4f
+    val initialZoom = when {
+        showSemanticRelationLabels && expandedMapLayout -> 0.8f
+        showSemanticRelationLabels -> 0.72f
+        expandedMapLayout -> 0.92f
+        else -> 0.82f
+    }
+    var zoom by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(initialZoom) }
+    var offset by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(Offset.Zero) }
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         zoom = (zoom * zoomChange).coerceIn(minZoom, maxZoom)
         offset += panChange
     }
-    val relations = remember(word.id, relatedWords) {
+    val relationLabelByTargetId = remember(word.id, word.relatedWordIds, word.relatedSemanticRelationLabels) {
+        word.relatedWordIds.mapIndexed { index, id ->
+            id to word.relatedSemanticRelationLabels.getOrElse(index) { "" }
+        }.toMap()
+    }
+    val relations = remember(word.id, relatedWords, layout, relationLabelByTargetId) {
         relatedWords.mapIndexed { index, relatedWord ->
+            val label = relationLabelByTargetId[relatedWord.id]
+                ?.takeIf { it.isNotBlank() }
+                ?: inferredSemanticRelationLabel(word, relatedWord)
+            val dashed = label.contains("HABITAT", ignoreCase = true) ||
+                label.contains("ACTION", ignoreCase = true) ||
+                label.contains("ASSOCIATED", ignoreCase = true)
+            val position = layout.relationPositions.getOrElse(index) {
+                SemanticMapNodePosition(0.dp, 0.dp)
+            }
             SemanticRelationNode(
                 word = relatedWord,
-                position = semanticMapPosition(index),
-                accent = semanticMapAccent(index)
+                position = position,
+                accent = semanticMapAccent(index),
+                relationLabel = label,
+                strokeDashed = dashed
             )
         }
     }
@@ -1753,12 +1884,13 @@ fun WordSemanticMapCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
+                        .height(viewportHeight)
+                        .clip(RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
                             .size(mapSize.width, mapSize.height)
-                            .padding(18.dp)
                             .transformable(transformState)
                             .graphicsLayer(
                                 scaleX = zoom,
@@ -1767,19 +1899,22 @@ fun WordSemanticMapCard(
                                 translationY = offset.y
                             )
                     ) {
-                        SemanticConnectionLayer(
-                            hubPosition = hubPosition,
-                            hubSize = hubSize,
-                            relations = relations,
-                            relationSize = relationSize
-                        )
+                        key(showSemanticRelationLabels) {
+                            SemanticConnectionLayer(
+                                hubPosition = layout.hubPosition,
+                                hubSize = layout.hubSize,
+                                relations = relations,
+                                relationSize = layout.relationSize,
+                                showSemanticRelationLabels = showSemanticRelationLabels
+                            )
+                        }
                         SemanticHub(
                             label = hubPrimary,
                             subtitle = hubSecondary,
                             showSubtitle = showSecondaryMeanings,
                             modifier = Modifier
-                                .offset(x = hubPosition.x, y = hubPosition.y)
-                                .size(hubSize.width, hubSize.height),
+                                .offset(x = layout.hubPosition.x, y = layout.hubPosition.y)
+                                .size(layout.hubSize.width, layout.hubSize.height),
                             accent = centerAccent
                         )
                         relations.forEach { relation ->
@@ -1790,7 +1925,7 @@ fun WordSemanticMapCard(
                                 primaryLanguage = primaryLanguage,
                                 modifier = Modifier
                                     .offset(x = relation.position.x, y = relation.position.y)
-                                    .size(relationSize.width, relationSize.height),
+                                    .size(layout.relationSize.width, layout.relationSize.height),
                                 onClick = { onWordClick(relation.word.id) }
                             )
                         }
@@ -1812,6 +1947,7 @@ private fun SemanticHub(
     Surface(
         color = accent.copy(alpha = 0.18f),
         shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.5.dp, accent),
         shadowElevation = 1.dp,
         modifier = modifier
     ) {
@@ -1846,51 +1982,43 @@ private fun SemanticRelationCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val primaryText = if (primaryLanguage == DisplayLanguage.English) {
+        word.english.replaceFirstChar { it.uppercase() }
+    } else {
+        word.cree
+    }
+    val secondaryText = if (primaryLanguage == DisplayLanguage.English) {
+        word.cree
+    } else {
+        word.english.replaceFirstChar { it.uppercase() }
+    }
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.14f),
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.5.dp, accent),
         shadowElevation = 0.5.dp,
         modifier = modifier.clickable(onClick = onClick)
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = accent.copy(alpha = 0.16f)
-            ) {
+            Text(
+                text = primaryText,
+                style = MaterialTheme.typography.titleSmall,
+                color = accent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (showSecondaryMeanings) {
                 Text(
-                    text = "->",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accent
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
-
-                Text(
-                    text = primaryText,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    text = secondaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (showSecondaryMeanings) {
-                    Text(
-                        text = secondaryText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
             }
         }
     }
@@ -1899,7 +2027,9 @@ private fun SemanticRelationCard(
 private data class SemanticRelationNode(
     val word: VocabularyWord,
     val position: SemanticMapNodePosition,
-    val accent: androidx.compose.ui.graphics.Color
+    val accent: androidx.compose.ui.graphics.Color,
+    val relationLabel: String,
+    val strokeDashed: Boolean
 )
 
 private data class SemanticMapNodePosition(
@@ -1916,20 +2046,47 @@ private val semanticMapAccentPalette = listOf(
     androidx.compose.ui.graphics.Color(0xFF2563EB)
 )
 
-private fun semanticMapPosition(index: Int): SemanticMapNodePosition {
-    val positions = listOf(
-        SemanticMapNodePosition(44.dp, 24.dp),
-        SemanticMapNodePosition(318.dp, 24.dp),
-        SemanticMapNodePosition(16.dp, 110.dp),
-        SemanticMapNodePosition(338.dp, 112.dp),
-        SemanticMapNodePosition(52.dp, 190.dp),
-        SemanticMapNodePosition(288.dp, 190.dp)
-    )
-    return positions[index % positions.size]
-}
-
 private fun semanticMapAccent(index: Int): androidx.compose.ui.graphics.Color {
     return semanticMapAccentPalette[index % semanticMapAccentPalette.size]
+}
+
+private fun inferredSemanticRelationLabel(
+    word: VocabularyWord,
+    relatedWord: VocabularyWord
+): String {
+    if (word.partOfSpeech.equals("adjective", ignoreCase = true) &&
+        relatedWord.partOfSpeech.equals("noun", ignoreCase = true)
+    ) {
+        return "DESCRIBES"
+    }
+    if (word.partOfSpeech.equals("noun", ignoreCase = true) &&
+        relatedWord.partOfSpeech.equals("adjective", ignoreCase = true)
+    ) {
+        return "DESCRIBED BY"
+    }
+    if (word.partOfSpeech.equals("verb", ignoreCase = true) ||
+        relatedWord.partOfSpeech.equals("verb", ignoreCase = true)
+    ) {
+        return "RELATED ACTION"
+    }
+    if (word.partOfSpeech.equals("phrase", ignoreCase = true) ||
+        relatedWord.partOfSpeech.equals("phrase", ignoreCase = true)
+    ) {
+        return "RELATED PHRASE"
+    }
+
+    if (word.subject == relatedWord.subject) {
+        return when (word.subject) {
+            SubjectFilter.Animals -> "RELATED ANIMAL"
+            SubjectFilter.Body -> "BODY TERM"
+            SubjectFilter.Weather -> "WEATHER TERM"
+            SubjectFilter.Foods -> "FOOD TERM"
+            SubjectFilter.Lands -> "PLACE TERM"
+            SubjectFilter.Words, SubjectFilter.All -> "RELATED WORD"
+        }
+    }
+
+    return "ASSOCIATED TERM"
 }
 
 @Composable
@@ -1937,7 +2094,8 @@ private fun SemanticConnectionLayer(
     hubPosition: SemanticMapNodePosition,
     hubSize: androidx.compose.ui.unit.DpSize,
     relations: List<SemanticRelationNode>,
-    relationSize: androidx.compose.ui.unit.DpSize
+    relationSize: androidx.compose.ui.unit.DpSize,
+    showSemanticRelationLabels: Boolean
 ) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val hubCenter = Offset(
@@ -1953,7 +2111,10 @@ private fun SemanticConnectionLayer(
             drawArrowConnection(
                 start = hubCenter,
                 end = relationCenter,
-                color = relation.accent
+                color = relation.accent,
+                dashed = relation.strokeDashed,
+                relationLabel = relation.relationLabel,
+                showLabel = showSemanticRelationLabels && relation.relationLabel.isNotBlank()
             )
         }
     }
@@ -1962,7 +2123,10 @@ private fun SemanticConnectionLayer(
 private fun DrawScope.drawArrowConnection(
     start: Offset,
     end: Offset,
-    color: androidx.compose.ui.graphics.Color
+    color: androidx.compose.ui.graphics.Color,
+    dashed: Boolean,
+    relationLabel: String,
+    showLabel: Boolean
 ) {
     val dx = end.x - start.x
     val dy = end.y - start.y
@@ -1979,12 +2143,19 @@ private fun DrawScope.drawArrowConnection(
         y = end.y - (dy / distance) * endInset
     )
 
+    val pathEffect = if (dashed) {
+        PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f)
+    } else {
+        null
+    }
+
     drawLine(
-            color = color.copy(alpha = 0.5f),
-            start = startPoint,
-            end = endPoint,
+        color = color.copy(alpha = 0.55f),
+        start = startPoint,
+        end = endPoint,
         strokeWidth = 4f,
-        cap = StrokeCap.Round
+        cap = StrokeCap.Round,
+        pathEffect = pathEffect
     )
 
     val angle = kotlin.math.atan2(dy, dx)
@@ -2014,6 +2185,53 @@ private fun DrawScope.drawArrowConnection(
         strokeWidth = 4f,
         cap = StrokeCap.Round
     )
+
+    if (showLabel) {
+        drawRelationLabel(
+            lineStart = startPoint,
+            lineEnd = endPoint,
+            color = color,
+            label = relationLabel
+        )
+    }
+}
+
+private fun DrawScope.drawRelationLabel(
+    lineStart: Offset,
+    lineEnd: Offset,
+    color: androidx.compose.ui.graphics.Color,
+    label: String
+) {
+    if (label.isBlank()) return
+    val midX = (lineStart.x + lineEnd.x) / 2f
+    val midY = (lineStart.y + lineEnd.y) / 2f
+    val dx = lineEnd.x - lineStart.x
+    val dy = lineEnd.y - lineStart.y
+    val len = kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(1f)
+    val perpX = -dy / len * 16f
+    val perpY = dx / len * 16f
+    val textX = midX + perpX
+    val textY = midY + perpY
+    var angleDeg = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble()))
+    if (angleDeg > 90) angleDeg -= 180
+    if (angleDeg < -90) angleDeg += 180
+
+    val textSizePx = 10f * density * fontScale
+    val paint = AndroidPaint().apply {
+        isAntiAlias = true
+        this.color = color.toArgb()
+        this.textSize = textSizePx
+        textAlign = AndroidPaint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+    drawContext.canvas.nativeCanvas.apply {
+        save()
+        rotate(angleDeg.toFloat(), textX, textY)
+        val textBaseline = textY - (paint.descent() + paint.ascent()) / 2f
+        drawText(label.uppercase(), textX, textBaseline, paint)
+        restore()
+    }
 }
 
 @Composable
@@ -2151,9 +2369,8 @@ fun SemanticMapScreenPreview() {
         SemanticMapScreen(
             word = word,
             relatedWords = relatedWords,
-            showFullSemanticMap = true,
+            showSemanticRelationLabels = true,
             primaryLanguage = DisplayLanguage.English,
-            onShowFullSemanticMapChange = {},
             onBack = {},
             onWordClick = {}
         )
@@ -2180,8 +2397,8 @@ fun SettingsScreenPreview() {
 fun ExpertModeScreenPreview() {
     MyVocabularyTheme {
         ExpertModeScreen(
-            showSemanticLabels = true,
-            onShowSemanticLabelsChange = {},
+            showSemanticRelationLabels = true,
+            onShowSemanticRelationLabelsChange = {},
             showMorphology = true,
             onShowMorphologyChange = {},
             showEntryCounts = true,

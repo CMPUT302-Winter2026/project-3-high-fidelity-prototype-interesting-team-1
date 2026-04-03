@@ -4,26 +4,21 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.myvocabulary.ui.theme.MyVocabularyTheme
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyVocabularyTheme {
-                VocabularyApp()
-            }
+            VocabularyApp()
         }
     }
 }
 
-@Preview(showBackground = true)
-@Composable
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@androidx.compose.runtime.Composable
 fun GreetingPreview() {
-    MyVocabularyTheme {
-        VocabularyApp()
-    }
+    VocabularyApp()
 }

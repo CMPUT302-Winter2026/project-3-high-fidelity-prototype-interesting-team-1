@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyVocabulary" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Launcher / splash: required on API 31+ for predictable cold start -->
+    <style name="Theme.MyVocabulary" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/Theme.MyVocabulary.Main</item>
+        <item name="windowSplashScreenBackground">@color/warm_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+
+    <style name="Theme.MyVocabulary.Main" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/warm_background</item>
+        <item name="android:colorBackground">@color/warm_background</item>
+    </style>
 </resources>
