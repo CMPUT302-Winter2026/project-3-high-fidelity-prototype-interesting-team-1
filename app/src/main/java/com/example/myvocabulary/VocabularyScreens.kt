@@ -9,6 +9,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
@@ -75,6 +76,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
@@ -96,6 +98,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.myvocabulary.ui.theme.Accent
 import com.example.myvocabulary.ui.theme.AccentDark
 import com.example.myvocabulary.ui.theme.MyVocabularyTheme
+
+private val ScrollBouncePadding = 64.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -147,7 +151,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(vertical = 0.dp),
+            contentPadding = PaddingValues(top = 0.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             item {
@@ -384,7 +388,7 @@ fun RecentSearchesScreen(
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 8.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = ScrollBouncePadding),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(recentSearches) { term ->
@@ -476,7 +480,7 @@ fun SearchResultsScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { ScreenHeader(title = "Search Results", onBack = onBack) }
@@ -624,7 +628,7 @@ fun CategoriesScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { ScreenHeader(title = "Categories", onBack = onBackToHome) }
@@ -718,7 +722,7 @@ fun WordDetailsScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { ScreenHeader(title = "Word Details", onBack = onBack) }
@@ -836,7 +840,7 @@ fun SemanticMapScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { ScreenHeader(title = "Semantic Map", onBack = onBack) }
@@ -854,7 +858,7 @@ fun SemanticMapScreen(
             }
             item {
                 Text(
-                    text = "Tap any node to open that word. Line labels follow Settings → Expert Mode.",
+                    text = "Enable relation labels in Settings → Expert Mode.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
@@ -877,20 +881,23 @@ fun SettingsScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { ScreenHeader(title = "Settings") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionTitle("General Settings")
+                    val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
                     SettingsRow(
                         title = "Primary Language",
                         subtitle = "Both is the default and shows Cree first with English inline. You can switch to Cree only or English only.",
                         subtitleContent = {
-                            SettingsExampleWord(
-                                primaryText = "Wâpos",
-                                secondaryText = "rabbit"
+                            SettingsWordDisplayPreviewCard(
+                                word = previewWord,
+                                title = "Preview",
+                                primaryLanguage = primaryLanguage,
+                                showInlineTranslation = primaryLanguage == DisplayLanguage.Both
                             )
                         },
                         trailing = {
@@ -935,9 +942,11 @@ fun SettingsScreen(
                         title = "Inline Translations",
                         subtitle = "Shows the second language inline with each word. In Both mode, this stays on automatically.",
                         subtitleContent = {
-                            SettingsExampleWord(
-                                primaryText = "Wâpos",
-                                secondaryText = "rabbit"
+                            SettingsWordDisplayPreviewCard(
+                                word = previewWord,
+                                title = "Preview",
+                                primaryLanguage = primaryLanguage,
+                                showInlineTranslation = primaryLanguage == DisplayLanguage.Both || inlineTranslations
                             )
                         },
                         trailing = {
@@ -988,7 +997,7 @@ fun ExpertModeScreen(
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { ScreenHeader(title = "Expert Mode", onBack = onBack) }
@@ -1606,21 +1615,76 @@ fun SettingsRow(
 }
 
 @Composable
-private fun SettingsExampleWord(
-    primaryText: String,
-    secondaryText: String
+private fun SettingsWordDisplayPreviewCard(
+    word: VocabularyWord,
+    title: String,
+    primaryLanguage: DisplayLanguage,
+    showInlineTranslation: Boolean
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-        Text(
-            text = primaryText,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = secondaryText,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    val primaryText = if (primaryLanguage == DisplayLanguage.English) {
+        word.english.replaceFirstChar { it.uppercase() }
+    } else {
+        word.cree
+    }
+    val secondaryText = if (primaryLanguage == DisplayLanguage.English) {
+        word.cree
+    } else {
+        word.english
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = word.icon.uppercase(),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(
+                            text = primaryText,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (showInlineTranslation) {
+                            Text(
+                                text = secondaryText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1856,6 +1920,7 @@ fun WordSemanticMapCard(
     onWordClick: (String) -> Unit
 ) {
     val centerAccent = Accent
+    val density = LocalDensity.current
     val layout = rememberSemanticMapLayout(
         relationCount = relatedWords.size,
         expandedMapLayout = expandedMapLayout,
@@ -1866,18 +1931,14 @@ fun WordSemanticMapCard(
         ?: layout.mapHeight
     val minZoom = 0.45f
     val maxZoom = 2.4f
-    val initialZoom = when {
+    val baseInitialZoom = when {
         showSemanticRelationLabels && expandedMapLayout -> 0.8f
         showSemanticRelationLabels -> 0.72f
         expandedMapLayout -> 0.92f
         else -> 0.82f
     }
-    var zoom by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(initialZoom) }
-    var offset by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(Offset.Zero) }
-    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        zoom = (zoom * zoomChange).coerceIn(minZoom, maxZoom)
-        offset += panChange
-    }
+    var zoom by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(baseInitialZoom) }
+    var panOffset by remember(word.id, expandedMapLayout, showSemanticRelationLabels) { mutableStateOf(Offset.Zero) }
     val relationLabelByTargetId = remember(word.id, word.relatedWordIds, word.relatedSemanticRelationLabels) {
         word.relatedWordIds.mapIndexed { index, id ->
             id to word.relatedSemanticRelationLabels.getOrElse(index) { "" }
@@ -1929,7 +1990,7 @@ fun WordSemanticMapCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Tap a node to open that exact word.",
+                text = "Drag with your fingers to move the map. Tap a node to open it.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1957,13 +2018,45 @@ fun WordSemanticMapCard(
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(viewportHeight)
-                        .clip(RoundedCornerShape(14.dp)),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(14.dp))
                 ) {
+                    val viewportWidth = maxWidth
+                    LaunchedEffect(
+                        word.id,
+                        expandedMapLayout,
+                        showSemanticRelationLabels,
+                        viewportWidth,
+                        viewportHeight
+                    ) {
+                        zoom = baseInitialZoom
+                        panOffset = Offset.Zero
+                    }
+                    val hubCenteredOffset = remember(
+                        layout.hubPosition,
+                        layout.hubSize,
+                        viewportWidth,
+                        viewportHeight,
+                        zoom,
+                        density
+                    ) {
+                        with(density) {
+                            val hubCenterX = layout.hubPosition.x.toPx() + layout.hubSize.width.toPx() / 2f
+                            val hubCenterY = layout.hubPosition.y.toPx() + layout.hubSize.height.toPx() / 2f
+                            Offset(
+                                x = viewportWidth.toPx() / 2f - (hubCenterX * zoom),
+                                y = viewportHeight.toPx() / 2f - (hubCenterY * zoom)
+                            )
+                        }
+                    }
+                    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+                        zoom = (zoom * zoomChange).coerceIn(minZoom, maxZoom)
+                        panOffset += panChange
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(mapSize.width, mapSize.height)
@@ -1971,8 +2064,9 @@ fun WordSemanticMapCard(
                             .graphicsLayer(
                                 scaleX = zoom,
                                 scaleY = zoom,
-                                translationX = offset.x,
-                                translationY = offset.y
+                                translationX = hubCenteredOffset.x + panOffset.x,
+                                translationY = hubCenteredOffset.y + panOffset.y,
+                                transformOrigin = TransformOrigin(0f, 0f)
                             )
                     ) {
                         key(showSemanticRelationLabels) {
