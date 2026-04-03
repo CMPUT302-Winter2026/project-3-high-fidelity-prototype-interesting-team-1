@@ -101,6 +101,38 @@ import com.example.myvocabulary.ui.theme.MyVocabularyTheme
 
 private val ScrollBouncePadding = 64.dp
 
+private fun VocabularyWord.primaryDisplayText(primaryLanguage: DisplayLanguage): String =
+    if (primaryLanguage == DisplayLanguage.English) {
+        english.replaceFirstChar { it.uppercase() }
+    } else {
+        cree
+    }
+
+private fun VocabularyWord.secondaryDisplayText(primaryLanguage: DisplayLanguage): String =
+    if (primaryLanguage == DisplayLanguage.English) {
+        cree
+    } else {
+        english.replaceFirstChar { it.uppercase() }
+    }
+
+private fun VocabularyWord.displayLabel(
+    primaryLanguage: DisplayLanguage,
+    showInlineTranslation: Boolean
+): String {
+    val primary = primaryDisplayText(primaryLanguage)
+    return if (showInlineTranslation) {
+        "$primary (${secondaryDisplayText(primaryLanguage)})"
+    } else {
+        primary
+    }
+}
+
+private fun CategoryCard.primaryDisplayText(primaryLanguage: DisplayLanguage): String =
+    if (primaryLanguage == DisplayLanguage.English) title else subject.creeLabel
+
+private fun CategoryCard.secondaryDisplayText(primaryLanguage: DisplayLanguage): String =
+    if (primaryLanguage == DisplayLanguage.English) subject.creeLabel else title
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
@@ -274,8 +306,8 @@ fun HomeScreen(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         if (matchedWord != null) {
-                                            val primary = if (primaryLanguage == DisplayLanguage.English) matchedWord.english.replaceFirstChar { it.uppercase() } else matchedWord.cree
-                                            val secondary = if (primaryLanguage == DisplayLanguage.English) matchedWord.cree else matchedWord.english
+                                            val primary = matchedWord.primaryDisplayText(primaryLanguage)
+                                            val secondary = matchedWord.secondaryDisplayText(primaryLanguage)
                                             Text(
                                                 text = primary,
                                                 style = MaterialTheme.typography.labelLarge,
@@ -427,8 +459,8 @@ fun RecentSearchesScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 if (matchedWord != null) {
-                                    val primary = if (primaryLanguage == DisplayLanguage.English) matchedWord.english.replaceFirstChar { it.uppercase() } else matchedWord.cree
-                                    val secondary = if (primaryLanguage == DisplayLanguage.English) matchedWord.cree else matchedWord.english
+                                    val primary = matchedWord.primaryDisplayText(primaryLanguage)
+                                    val secondary = matchedWord.secondaryDisplayText(primaryLanguage)
                                     Text(
                                         text = primary,
                                         style = MaterialTheme.typography.bodyLarge
@@ -520,9 +552,9 @@ fun SearchResultsScreen(
                 )
             }
             item {
-                SectionTitle("Cree Words")
+                SectionTitle("Results")
                 Text(
-                    text = "Explore the Vocabulary",
+                    text = "Explore the vocabulary",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -617,10 +649,10 @@ fun CategoriesScreen(
 
         when (sortOrder) {
             CategorySort.AlphabeticalAZ -> categoriesWithCounts.sortedBy {
-                if (primaryLanguage == DisplayLanguage.English) it.category.title else it.category.subject.creeLabel
+                it.category.primaryDisplayText(primaryLanguage)
             }
             CategorySort.AlphabeticalZA -> categoriesWithCounts.sortedByDescending {
-                if (primaryLanguage == DisplayLanguage.English) it.category.title else it.category.subject.creeLabel
+                it.category.primaryDisplayText(primaryLanguage)
             }
         }
     }
@@ -733,8 +765,8 @@ fun WordDetailsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                        val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+                        val primaryText = word.primaryDisplayText(primaryLanguage)
+                        val secondaryText = word.secondaryDisplayText(primaryLanguage)
                         Text(
                             text = primaryText,
                             style = MaterialTheme.typography.headlineLarge,
@@ -755,7 +787,9 @@ fun WordDetailsScreen(
                 ActionRow(
                     icon = Icons.AutoMirrored.Filled.VolumeUp,
                     label = word.pronunciationLabel,
-                    onClick = { playbackMessage = "Playing audio for ${word.cree}" }
+                    onClick = {
+                        playbackMessage = "Playing audio for ${word.displayLabel(primaryLanguage, inlineTranslations)}"
+                    }
                 )
             }
             item {
@@ -784,7 +818,7 @@ fun WordDetailsScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "Highlight: ${word.cree.lowercase()}",
+                                text = "Highlight: ${word.primaryDisplayText(primaryLanguage)}",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -834,6 +868,7 @@ fun SemanticMapScreen(
     relatedWords: List<VocabularyWord>,
     showSemanticRelationLabels: Boolean,
     primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit
 ) {
@@ -849,7 +884,7 @@ fun SemanticMapScreen(
                     word = word,
                     relatedWords = relatedWords,
                     showSemanticRelationLabels = showSemanticRelationLabels,
-                    showSecondaryMeanings = true,
+                    showSecondaryMeanings = inlineTranslations,
                     primaryLanguage = primaryLanguage,
                     expandedMapLayout = false,
                     mapViewportMaxHeight = 300.dp,
@@ -990,6 +1025,7 @@ fun ExpertModeScreen(
     showEntryCounts: Boolean,
     onShowEntryCountsChange: (Boolean) -> Unit,
     primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
     onBack: () -> Unit
 ) {
     val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
@@ -1055,6 +1091,7 @@ fun ExpertModeScreen(
                     SemanticMapPreviewCard(
                         showSemanticRelationLabels = showSemanticRelationLabels,
                         primaryLanguage = primaryLanguage,
+                        inlineTranslations = inlineTranslations,
                         modifier = Modifier.padding(start = 16.dp)
                     )
                 }
@@ -1207,8 +1244,8 @@ fun WordOfDayCard(
             verticalArrangement = Arrangement.Center
         ) {
             Column {
-                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+                val primaryText = word.primaryDisplayText(primaryLanguage)
+                val secondaryText = word.secondaryDisplayText(primaryLanguage)
                 
                 Text(
                     text = primaryText,
@@ -1258,8 +1295,8 @@ fun SearchResultItem(
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english.replaceFirstChar { it.uppercase() }
+                val primaryText = word.primaryDisplayText(primaryLanguage)
+                val secondaryText = word.secondaryDisplayText(primaryLanguage)
 
                 Text(
                     text = primaryText,
@@ -1336,8 +1373,8 @@ fun CategoryGridCard(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            val primaryText = if (primaryLanguage == DisplayLanguage.English) category.title else category.subject.creeLabel
-            val secondaryText = if (primaryLanguage == DisplayLanguage.English) category.subject.creeLabel else category.title
+            val primaryText = category.primaryDisplayText(primaryLanguage)
+            val secondaryText = category.secondaryDisplayText(primaryLanguage)
 
             Text(
                 text = primaryText,
@@ -1395,8 +1432,8 @@ fun RelatedWordItem(
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                val primaryText = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-                val secondaryText = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+                val primaryText = word.primaryDisplayText(primaryLanguage)
+                val secondaryText = word.secondaryDisplayText(primaryLanguage)
 
                 Text(
                     text = primaryText,
@@ -1621,16 +1658,8 @@ private fun SettingsWordDisplayPreviewCard(
     primaryLanguage: DisplayLanguage,
     showInlineTranslation: Boolean
 ) {
-    val primaryText = if (primaryLanguage == DisplayLanguage.English) {
-        word.english.replaceFirstChar { it.uppercase() }
-    } else {
-        word.cree
-    }
-    val secondaryText = if (primaryLanguage == DisplayLanguage.English) {
-        word.cree
-    } else {
-        word.english
-    }
+    val primaryText = word.primaryDisplayText(primaryLanguage)
+    val secondaryText = word.secondaryDisplayText(primaryLanguage)
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
@@ -1799,6 +1828,7 @@ fun MorphologyRow(label: String, value: String, description: String) {
 fun SemanticMapPreviewCard(
     showSemanticRelationLabels: Boolean = false,
     primaryLanguage: DisplayLanguage,
+    inlineTranslations: Boolean,
     modifier: Modifier = Modifier,
     onWordClick: (String) -> Unit = {}
 ) {
@@ -1811,7 +1841,7 @@ fun SemanticMapPreviewCard(
             word = previewWord,
             relatedWords = relatedWords,
             showSemanticRelationLabels = showSemanticRelationLabels,
-            showSecondaryMeanings = true,
+            showSecondaryMeanings = inlineTranslations,
             primaryLanguage = primaryLanguage,
             title = "Semantic Map Preview",
             expandedMapLayout = false,
@@ -1971,8 +2001,8 @@ fun WordSemanticMapCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val hubPrimary = if (primaryLanguage == DisplayLanguage.English) word.english.replaceFirstChar { it.uppercase() } else word.cree
-            val hubSecondary = if (primaryLanguage == DisplayLanguage.English) word.cree else word.english
+            val hubPrimary = word.primaryDisplayText(primaryLanguage)
+            val hubSecondary = word.secondaryDisplayText(primaryLanguage)
 
             Text(
                 text = title,
@@ -1984,11 +2014,13 @@ fun WordSemanticMapCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = hubSecondary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (showSecondaryMeanings) {
+                Text(
+                    text = hubSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
                 text = "Drag with your fingers to move the map. Tap a node to open it.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -2152,16 +2184,8 @@ private fun SemanticRelationCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val primaryText = if (primaryLanguage == DisplayLanguage.English) {
-        word.english.replaceFirstChar { it.uppercase() }
-    } else {
-        word.cree
-    }
-    val secondaryText = if (primaryLanguage == DisplayLanguage.English) {
-        word.cree
-    } else {
-        word.english.replaceFirstChar { it.uppercase() }
-    }
+    val primaryText = word.primaryDisplayText(primaryLanguage)
+    val secondaryText = word.secondaryDisplayText(primaryLanguage)
     Surface(
         color = accent.copy(alpha = 0.14f),
         shape = RoundedCornerShape(999.dp),
@@ -2541,6 +2565,7 @@ fun SemanticMapScreenPreview() {
             relatedWords = relatedWords,
             showSemanticRelationLabels = true,
             primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true,
             onBack = {},
             onWordClick = {}
         )
@@ -2574,6 +2599,7 @@ fun ExpertModeScreenPreview() {
             showEntryCounts = true,
             onShowEntryCountsChange = {},
             primaryLanguage = DisplayLanguage.English,
+            inlineTranslations = true,
             onBack = {}
         )
     }

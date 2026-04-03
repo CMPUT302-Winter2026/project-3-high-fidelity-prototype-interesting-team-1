@@ -301,6 +301,7 @@ fun VocabularyApp() {
                             },
                             showSemanticRelationLabels = showSemanticRelationLabels,
                             primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations,
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord
                         )
@@ -332,6 +333,7 @@ fun VocabularyApp() {
                             showEntryCounts = showEntryCounts,
                             onShowEntryCountsChange = { showEntryCounts = it },
                             primaryLanguage = primaryLanguage,
+                            inlineTranslations = effectiveInlineTranslations,
                             onBack = { navController.popBackStack() }
                         )
                     }
