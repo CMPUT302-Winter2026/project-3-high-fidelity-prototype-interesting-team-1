@@ -46,18 +46,46 @@ private data class SearchCacheKey(
     val sort: SortOption
 )
 
+data class DictionaryStartupSnapshot(
+    val cachedWords: List<VocabularyWord>,
+    val syncState: DictionarySyncState?,
+    val hasFullCache: Boolean
+)
+
+suspend fun loadDictionaryStartupSnapshot(context: android.content.Context): DictionaryStartupSnapshot {
+    val database = VocabularyDatabase.getInstance(context)
+    val vocabularyDao = database.vocabularyDao()
+    val syncStateDao = database.syncStateDao()
+    val cachedWords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        vocabularyDao.getAllWords()
+    }
+    val currentState = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        syncStateDao.getState("entries")
+    }
+    val hasFullCache = cachedWords.isNotEmpty() &&
+        currentState?.isComplete == true &&
+        cachedWords.size >= currentState.totalWords
+    return DictionaryStartupSnapshot(
+        cachedWords = cachedWords,
+        syncState = currentState,
+        hasFullCache = hasFullCache
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun VocabularyApp() {
+fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
     val seedWords = remember { seedVocabularyWords() }
     val context = LocalContext.current
     val database = remember(context) { VocabularyDatabase.getInstance(context) }
     val vocabularyDao = remember(database) { database.vocabularyDao() }
     val syncStateDao = remember(database) { database.syncStateDao() }
-    val dbWords by vocabularyDao.observeAllWords().collectAsState(initial = seedWords)
-    val syncState by syncStateDao.observeState("entries").collectAsState(initial = null)
+    val dbWords by vocabularyDao.observeAllWords().collectAsState(initial = startupSnapshot?.cachedWords ?: emptyList())
+    val syncState by syncStateDao.observeState("entries").collectAsState(initial = startupSnapshot?.syncState)
     val searchCache = remember { mutableStateMapOf<SearchCacheKey, List<VocabularyWord>>() }
-    var bootstrapped by rememberSaveable { mutableStateOf(false) }
+    val startupCachedWords = startupSnapshot?.takeIf { it.hasFullCache }?.cachedWords
+    var bootstrapWords by remember { mutableStateOf(startupCachedWords) }
+    var bootstrapComplete by remember { mutableStateOf(startupSnapshot?.hasFullCache == true) }
     var homeQuery by rememberSaveable { mutableStateOf("") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchSubject by rememberSaveable { mutableStateOf(SubjectFilter.All) }
@@ -81,70 +109,89 @@ fun VocabularyApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Screen.Home.route
-    SideEffect {
-        VocabularyCatalog.words = dbWords
-    }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(startupSnapshot?.hasFullCache) {
+        if (startupSnapshot?.hasFullCache == true) return@LaunchedEffect
         val cachedWords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             vocabularyDao.getAllWords()
         }
-        if (cachedWords.isEmpty()) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                vocabularyDao.upsertAll(seedWords)
-            }
-        }
-
         val currentState = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             syncStateDao.getState("entries")
         }
-        if (currentState?.isComplete != true) {
+        val hasFullCache = cachedWords.isNotEmpty() &&
+            currentState?.isComplete == true &&
+            cachedWords.size >= currentState.totalWords
+        if (hasFullCache) {
+            bootstrapWords = cachedWords
+            bootstrapComplete = true
+            return@LaunchedEffect
+        }
+
+        try {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 CreeDictionaryRepository.syncAllEntriesIntoRoom(vocabularyDao, syncStateDao)
             }
+        } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
         }
-        bootstrapped = true
+
+        bootstrapWords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            vocabularyDao.getAllWords().ifEmpty { cachedWords }
+        }
+        bootstrapComplete = true
     }
-    val vocabularyWordsById = remember(vocabularyWords) {
+    val activeWords = when {
+        bootstrapComplete -> dbWords.ifEmpty { bootstrapWords ?: seedWords }
+        bootstrapWords != null -> bootstrapWords!!
+        dbWords.isNotEmpty() -> dbWords
+        else -> emptyList()
+    }
+    SideEffect {
+        VocabularyCatalog.words = activeWords
+    }
+    val vocabularyWordsById = remember(activeWords) {
         buildMap {
-            vocabularyWords.forEach { word ->
+            activeWords.forEach { word ->
                 put(word.id.lowercase(), word)
                 put(word.cree.lowercase(), word)
                 put(word.english.lowercase(), word)
             }
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(activeWords, bootstrapComplete) {
+        if (!bootstrapComplete) return@LaunchedEffect
         recentSearches = recentSearches.mapNotNull { term ->
             vocabularyWordsById[term.lowercase()]?.id
         }.distinct()
     }
-    androidx.compose.runtime.LaunchedEffect(currentRoute) {
-        if (currentRoute == Screen.Home.route) {
-            wordOfDayPages = vocabularyWords.shuffled().take(3).map { it.id }
+    androidx.compose.runtime.LaunchedEffect(currentRoute, activeWords, bootstrapComplete) {
+        if (bootstrapComplete && currentRoute == Screen.Home.route && activeWords.isNotEmpty()) {
+            wordOfDayPages = activeWords.shuffled().take(3).map { it.id }
         }
     }
     val wordOfDayWords = remember(wordOfDayPages) {
         wordOfDayPages.mapNotNull { id -> vocabularyWordsById[id.lowercase()] }
-            .ifEmpty { vocabularyWords.take(3) }
+            .ifEmpty { activeWords.take(3) }
     }
     val currentSearchKey = SearchCacheKey(searchQuery, searchSubject, searchWordType, searchSort)
     val currentSearchWords = searchCache[currentSearchKey] ?: searchWords(
-        vocabularyWords,
+        activeWords,
         searchQuery,
         searchSubject,
         searchWordType,
         searchSort
     )
 
-    LaunchedEffect(currentSearchKey, vocabularyWords) {
+    LaunchedEffect(currentSearchKey, activeWords) {
         if (searchCache.containsKey(currentSearchKey)) return@LaunchedEffect
         val results = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            searchWords(vocabularyWords, searchQuery, searchSubject, searchWordType, searchSort)
+            searchWords(activeWords, searchQuery, searchSubject, searchWordType, searchSort)
         }
         searchCache[currentSearchKey] = results
     }
 
-    if (!bootstrapped) {
+    val shouldShowLoading = !bootstrapComplete
+
+    if (shouldShowLoading) {
         DictionaryLoadingScreen(
             syncedWords = syncState?.syncedWords ?: 0,
             totalWords = syncState?.totalWords ?: 0
