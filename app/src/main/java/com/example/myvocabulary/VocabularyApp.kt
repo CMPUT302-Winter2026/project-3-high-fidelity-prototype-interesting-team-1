@@ -2,6 +2,7 @@ package com.example.myvocabulary
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +25,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +42,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.myvocabulary.ui.theme.MyVocabularyTheme
+import kotlinx.coroutines.withContext
 
 private data class SearchCacheKey(
     val query: String,
@@ -45,6 +50,65 @@ private data class SearchCacheKey(
     val wordType: WordTypeFilter,
     val sort: SortOption
 )
+
+private fun VocabularyWord.needsRemoteSemanticFetch(): Boolean {
+    return remoteUuid.isNotBlank() && relatedSemanticRelationLabels.isEmpty()
+}
+
+private data class WordDetailUiState(
+    val bundle: CreeDictionaryRepository.WordDetailBundle,
+    val isLoading: Boolean
+)
+
+@Composable
+private fun rememberWordDetailState(
+    word: VocabularyWord,
+    vocabularyWordsById: Map<String, VocabularyWord>,
+    vocabularyDao: VocabularyDao
+): androidx.compose.runtime.State<WordDetailUiState> =
+    produceState(
+        initialValue = WordDetailUiState(
+            bundle = CreeDictionaryRepository.WordDetailBundle(
+                word = word,
+                relatedWords = word.relatedWordIds.mapNotNull { id -> vocabularyWordsById[id.lowercase()] }
+            ),
+            isLoading = word.needsRemoteSemanticFetch()
+        ),
+        word.id,
+        word.remoteUuid,
+        word.relatedWordIds,
+        word.relatedSemanticRelationLabels
+    ) {
+        if (!word.needsRemoteSemanticFetch()) {
+            value = WordDetailUiState(value.bundle, isLoading = false)
+            return@produceState
+        }
+
+        val cachedBundle = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            CreeDictionaryRepository.cacheWordDetail(vocabularyDao, word)
+        }
+        value = WordDetailUiState(cachedBundle ?: value.bundle, isLoading = false)
+    }
+
+@Composable
+private fun DictionaryRelationLoadingContent(title: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
 
 data class DictionaryStartupSnapshot(
     val cachedWords: List<VocabularyWord>,
@@ -391,18 +455,29 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                         arguments = listOf(navArgument("wordId") { type = NavType.StringType })
                     ) { entry ->
                         val wordId = entry.arguments?.getString("wordId")
-                        val word = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
+                        val baseWord = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
+                        val detailBundleState = rememberWordDetailState(
+                            word = baseWord,
+                            vocabularyWordsById = vocabularyWordsById,
+                            vocabularyDao = vocabularyDao
+                        )
+                        val detailState = detailBundleState.value
+
+                        if (detailState.isLoading && detailState.bundle.relatedWords.isEmpty()) {
+                            DictionaryRelationLoadingContent("Loading word details")
+                            return@composable
+                        }
 
                         WordDetailsScreen(
-                            word = word,
-                            relatedWords = word.relatedWordIds.mapNotNull { id -> vocabularyWordsById[id.lowercase()] },
+                            word = detailState.bundle.word,
+                            relatedWords = detailState.bundle.relatedWords,
                             showMorphology = showMorphology,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord,
                             onConnectionsClick = {
-                                openSemanticMap(word.id)
+                                openSemanticMap(detailState.bundle.word.id)
                             }
                         )
                     }
@@ -412,11 +487,22 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                         arguments = listOf(navArgument("wordId") { type = NavType.StringType })
                     ) { entry ->
                         val wordId = entry.arguments?.getString("wordId")
-                        val word = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
+                        val baseWord = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
+                        val detailBundleState = rememberWordDetailState(
+                            word = baseWord,
+                            vocabularyWordsById = vocabularyWordsById,
+                            vocabularyDao = vocabularyDao
+                        )
+                        val detailState = detailBundleState.value
+
+                        if (detailState.isLoading && detailState.bundle.relatedWords.isEmpty()) {
+                            DictionaryRelationLoadingContent("Loading semantic map")
+                            return@composable
+                        }
 
                         SemanticMapScreen(
-                            word = word,
-                            relatedWords = word.relatedWordIds.mapNotNull { id -> vocabularyWordsById[id.lowercase()] },
+                            word = detailState.bundle.word,
+                            relatedWords = detailState.bundle.relatedWords,
                             showSemanticRelationLabels = showSemanticRelationLabels,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,

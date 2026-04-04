@@ -17,6 +17,11 @@ object CreeDictionaryRepository {
     private val browseControllers = listOf("entries", "keywords", "themes", "morphemes", "ps")
     private const val browseLimit = 100
 
+    data class WordDetailBundle(
+        val word: VocabularyWord,
+        val relatedWords: List<VocabularyWord>
+    )
+
     suspend fun seedWords(words: List<VocabularyWord>): List<VocabularyWord> = coroutineScope {
         words.map { word ->
             async(Dispatchers.IO) {
@@ -192,7 +197,7 @@ object CreeDictionaryRepository {
                 remoteUuid = exact.remoteUuid.ifBlank { exact.id },
                 appId = seed.id,
                 iconFallback = seed.icon
-            ) ?: exact.copy(
+            )?.word ?: exact.copy(
                 id = seed.id,
                 remoteUuid = exact.remoteUuid.ifBlank { exact.id },
                 icon = seed.icon
@@ -203,7 +208,7 @@ object CreeDictionaryRepository {
         }
     }
 
-    suspend fun loadWordDetail(remoteUuid: String, appId: String? = null, iconFallback: String = ""): VocabularyWord? =
+    suspend fun loadWordDetail(remoteUuid: String, appId: String? = null, iconFallback: String = ""): WordDetailBundle? =
         withContext(Dispatchers.IO) {
             try {
                 val root = fetchJsonObject("$baseUrl/entries/view/$remoteUuid.json")
@@ -220,19 +225,57 @@ object CreeDictionaryRepository {
                 )
 
                 val relatedWords = loadRelatedWords(entry.optJSONArray("Keyword"), remoteUuid)
-                if (relatedWords.isEmpty()) {
-                    return@withContext baseWord
+                val resolvedWord = if (relatedWords.isEmpty()) {
+                    baseWord.copy(
+                        relatedSemanticRelationLabels = listOf("NO RELATED WORDS")
+                    )
+                } else {
+                    baseWord.copy(
+                        relatedWordIds = relatedWords.map { it.id },
+                        relatedSemanticRelationLabels = relatedWords.map { "RELATED WORD" }
+                    )
                 }
 
-                baseWord.copy(
-                    relatedWordIds = relatedWords.map { it.id },
-                    relatedSemanticRelationLabels = relatedWords.map { "RELATED WORD" }
+                WordDetailBundle(
+                    word = resolvedWord,
+                    relatedWords = relatedWords
                 )
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 null
             }
         }
+
+    suspend fun cacheWordDetail(
+        vocabularyDao: VocabularyDao,
+        word: VocabularyWord
+    ): WordDetailBundle? {
+        val remoteUuid = word.remoteUuid.ifBlank { word.id }
+        val detail = loadWordDetail(
+            remoteUuid = remoteUuid,
+            appId = word.id,
+            iconFallback = word.icon
+        ) ?: return null
+
+        val mergedWord = mergeForCache(
+            existing = vocabularyDao.getWordById(detail.word.id),
+            incoming = detail.word,
+            preferIncomingRelations = true
+        )
+        val mergedRelatedWords = detail.relatedWords.map { relatedWord ->
+            mergeForCache(
+                existing = vocabularyDao.getWordById(relatedWord.id),
+                incoming = relatedWord,
+                preferIncomingRelations = false
+            )
+        }
+
+        vocabularyDao.upsertAll(listOf(mergedWord) + mergedRelatedWords)
+        return WordDetailBundle(
+            word = mergedWord,
+            relatedWords = mergedRelatedWords
+        )
+    }
 
     private suspend fun loadRelatedWords(keywordArray: JSONArray?, currentRemoteUuid: String): List<VocabularyWord> {
         if (keywordArray == null || keywordArray.length() == 0) return emptyList()
@@ -533,5 +576,33 @@ object CreeDictionaryRepository {
 
     private fun String.anyContains(vararg needles: String): Boolean {
         return needles.any { contains(it, ignoreCase = true) }
+    }
+
+    private fun mergeForCache(
+        existing: VocabularyWord?,
+        incoming: VocabularyWord,
+        preferIncomingRelations: Boolean
+    ): VocabularyWord {
+        if (existing == null) return incoming
+        return incoming.copy(
+            relatedWordIds = if (preferIncomingRelations || incoming.relatedWordIds.isNotEmpty()) {
+                incoming.relatedWordIds
+            } else {
+                existing.relatedWordIds
+            },
+            relatedSemanticRelationLabels = if (preferIncomingRelations || incoming.relatedSemanticRelationLabels.isNotEmpty()) {
+                incoming.relatedSemanticRelationLabels
+            } else {
+                existing.relatedSemanticRelationLabels
+            },
+            morphology = incoming.morphology.ifBlank { existing.morphology },
+            detailedMorphology = if (incoming.detailedMorphology != DetailedMorphology()) {
+                incoming.detailedMorphology
+            } else {
+                existing.detailedMorphology
+            },
+            icon = incoming.icon.ifBlank { existing.icon },
+            remoteUuid = incoming.remoteUuid.ifBlank { existing.remoteUuid }
+        )
     }
 }

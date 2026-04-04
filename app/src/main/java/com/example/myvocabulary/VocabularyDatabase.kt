@@ -24,6 +24,9 @@ interface VocabularyDao {
     @Query("SELECT * FROM vocabulary_words ORDER BY english COLLATE NOCASE ASC, cree COLLATE NOCASE ASC")
     suspend fun getAllWords(): List<VocabularyWord>
 
+    @Query("SELECT * FROM vocabulary_words WHERE id = :id LIMIT 1")
+    suspend fun getWordById(id: String): VocabularyWord?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(words: List<VocabularyWord>)
 
