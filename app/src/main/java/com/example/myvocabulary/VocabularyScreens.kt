@@ -61,8 +61,10 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +92,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.sin
@@ -151,9 +155,7 @@ fun HomeScreen(
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean
 ) {
-    val wordsForPager = remember(wordOfDayPages) {
-        if (wordOfDayPages.isEmpty()) listOf(vocabularyWords.first()) else wordOfDayPages
-    }
+    val wordsForPager = if (wordOfDayPages.isEmpty()) listOf(vocabularyWords.first()) else wordOfDayPages
     val pagerState = rememberPagerState(pageCount = { wordsForPager.size })
     var searchToDelete by remember { mutableStateOf<String?>(null) }
 
@@ -202,7 +204,7 @@ fun HomeScreen(
                         value = query,
                         onValueChange = onQueryChange,
                         placeholder = "Search Cree or English",
-                        onSearch = onSearch
+                        onSearch = { _ -> onSearch() }
                     )
                     Spacer(modifier = Modifier.height(32.dp))
                     SectionTitle("Words of the Day")
@@ -283,10 +285,10 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             recentSearches.take(10).forEach { term ->
-                                val matchedWord = remember(term) {
-                                    vocabularyWords.firstOrNull {
-                                        it.cree.equals(term, ignoreCase = true) ||
-                                        it.english.equals(term, ignoreCase = true) ||
+                      val matchedWord = remember(term, vocabularyWords) {
+                          vocabularyWords.firstOrNull {
+                              it.cree.equals(term, ignoreCase = true) ||
+                              it.english.equals(term, ignoreCase = true) ||
                                         it.id.equals(term, ignoreCase = true)
                                     }
                                 }
@@ -491,6 +493,7 @@ fun RecentSearchesScreen(
 @Composable
 fun SearchResultsScreen(
     query: String,
+    filteredWords: List<VocabularyWord>,
     subjectFilter: SubjectFilter,
     wordTypeFilter: WordTypeFilter,
     sortOption: SortOption,
@@ -505,10 +508,6 @@ fun SearchResultsScreen(
     onWordClick: (String) -> Unit,
     onSubmitSearch: (String) -> Unit
 ) {
-    val filteredWords = remember(query, subjectFilter, wordTypeFilter, sortOption) {
-        searchWords(vocabularyWords, query, subjectFilter, wordTypeFilter, sortOption)
-    }
-
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -522,7 +521,7 @@ fun SearchResultsScreen(
                     value = query,
                     onValueChange = onQueryChange,
                     placeholder = "Search for a word",
-                    onSearch = { onSubmitSearch(query) }
+                    onSearch = onSubmitSearch
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -605,54 +604,56 @@ fun CategoriesScreen(
         val carriedQuery: String
     )
 
-    val categoryResults = remember(query, sortOrder, primaryLanguage, wordTypeFilter) {
-        val normalizedQueryLower = normalizedQuery.lowercase()
-        val queryTokens = normalizedQueryLower.split(Regex("\\s+")).filter { it.isNotBlank() }
+    val categoryResults by produceState(initialValue = emptyList<CategorySearchResult>(), vocabularyWords, query, sortOrder, primaryLanguage, wordTypeFilter) {
+        value = withContext(Dispatchers.Default) {
+            val normalizedQueryLower = normalizedQuery.lowercase()
+            val queryTokens = normalizedQueryLower.split(Regex("\\s+")).filter { it.isNotBlank() }
 
-        val categoriesWithCounts = suggestedCategories.mapNotNull { category ->
-            val typeFilteredWords = vocabularyWords.filter { word ->
-                word.subject == category.subject &&
-                    (wordTypeFilter == WordTypeFilter.All ||
-                        word.partOfSpeech.equals(wordTypeFilter.label, ignoreCase = true))
-            }
-            val matchingWordCount = if (normalizedQueryLower.isBlank()) {
-                typeFilteredWords.size
-            } else {
-                typeFilteredWords.count { word ->
-                    word.matches(normalizedQueryLower, category.subject, wordTypeFilter)
+            val categoriesWithCounts = suggestedCategories.mapNotNull { category ->
+                val typeFilteredWords = vocabularyWords.filter { word ->
+                    word.subject == category.subject &&
+                        (wordTypeFilter == WordTypeFilter.All ||
+                            word.partOfSpeech.equals(wordTypeFilter.label, ignoreCase = true))
+                }
+                val matchingWordCount = if (normalizedQueryLower.isBlank()) {
+                    typeFilteredWords.size
+                } else {
+                    typeFilteredWords.count { word ->
+                        word.matches(normalizedQueryLower, category.subject, wordTypeFilter)
+                    }
+                }
+                val categoryTextMatches = normalizedQueryLower.isBlank() ||
+                    category.title.contains(normalizedQueryLower, ignoreCase = true) ||
+                    category.description.contains(normalizedQueryLower, ignoreCase = true) ||
+                    queryTokens.all { token ->
+                        category.title.contains(token, ignoreCase = true) ||
+                            category.description.contains(token, ignoreCase = true)
+                    }
+                val visible = if (normalizedQueryLower.isBlank()) {
+                    typeFilteredWords.isNotEmpty()
+                } else {
+                    matchingWordCount > 0 || categoryTextMatches
+                }
+
+                if (!visible) {
+                    null
+                } else {
+                    CategorySearchResult(
+                        category = category.copy(
+                            count = if (matchingWordCount > 0) matchingWordCount else typeFilteredWords.size
+                        ),
+                        carriedQuery = if (matchingWordCount > 0) normalizedQuery else ""
+                    )
                 }
             }
-            val categoryTextMatches = normalizedQueryLower.isBlank() ||
-                category.title.contains(normalizedQueryLower, ignoreCase = true) ||
-                category.description.contains(normalizedQueryLower, ignoreCase = true) ||
-                queryTokens.all { token ->
-                    category.title.contains(token, ignoreCase = true) ||
-                        category.description.contains(token, ignoreCase = true)
+
+            when (sortOrder) {
+                CategorySort.AlphabeticalAZ -> categoriesWithCounts.sortedBy {
+                    it.category.primaryDisplayText(primaryLanguage)
                 }
-            val visible = if (normalizedQueryLower.isBlank()) {
-                typeFilteredWords.isNotEmpty()
-            } else {
-                matchingWordCount > 0 || categoryTextMatches
-            }
-
-            if (!visible) {
-                null
-            } else {
-                CategorySearchResult(
-                    category = category.copy(
-                        count = if (matchingWordCount > 0) matchingWordCount else typeFilteredWords.size
-                    ),
-                    carriedQuery = if (matchingWordCount > 0) normalizedQuery else ""
-                )
-            }
-        }
-
-        when (sortOrder) {
-            CategorySort.AlphabeticalAZ -> categoriesWithCounts.sortedBy {
-                it.category.primaryDisplayText(primaryLanguage)
-            }
-            CategorySort.AlphabeticalZA -> categoriesWithCounts.sortedByDescending {
-                it.category.primaryDisplayText(primaryLanguage)
+                CategorySort.AlphabeticalZA -> categoriesWithCounts.sortedByDescending {
+                    it.category.primaryDisplayText(primaryLanguage)
+                }
             }
         }
     }
@@ -671,7 +672,7 @@ fun CategoriesScreen(
                         value = query,
                         onValueChange = onQueryChange,
                         placeholder = "Search categories or words",
-                        onSearch = { }
+                        onSearch = { _ -> }
                     )
                 }
             }
@@ -923,7 +924,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionTitle("General Settings")
-                    val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
+                      val previewWord = remember(vocabularyWords) { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
                     SettingsRow(
                         title = "Primary Language",
                         subtitle = "Both is the default and shows Cree first with English inline. You can switch to Cree only or English only.",
@@ -1137,6 +1138,46 @@ fun VocabularyScreenSurface(content: @Composable () -> Unit) {
 }
 
 @Composable
+fun DictionaryLoadingScreen(
+    syncedWords: Int,
+    totalWords: Int
+) {
+    VocabularyScreenSurface {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            ) {
+                Text(
+                    text = "Loading dictionary",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                LinearProgressIndicator(
+                    progress = {
+                        if (totalWords > 0) syncedWords.toFloat() / totalWords.toFloat() else 0f
+                    },
+                    modifier = Modifier.fillMaxWidth().height(8.dp)
+                )
+                Text(
+                    text = if (totalWords > 0) {
+                        "$syncedWords of $totalWords words cached"
+                    } else {
+                        "Preparing cache..."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ScreenHeader(title: String, onBack: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
@@ -1199,17 +1240,18 @@ fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    onSearch: () -> Unit
+    onSearch: (String) -> Unit
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
         placeholder = { Text(placeholder) },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
         shape = RoundedCornerShape(14.dp),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+        keyboardActions = KeyboardActions(onSearch = { onSearch(value) }),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -2519,6 +2561,7 @@ fun SearchResultsScreenPreview() {
     MyVocabularyTheme {
         SearchResultsScreen(
             query = "wapos",
+            filteredWords = vocabularyWords,
             subjectFilter = SubjectFilter.All,
             wordTypeFilter = WordTypeFilter.All,
             sortOption = SortOption.AlphabeticalAZ,

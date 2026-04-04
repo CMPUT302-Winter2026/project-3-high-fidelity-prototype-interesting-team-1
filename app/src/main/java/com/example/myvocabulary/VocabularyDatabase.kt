@@ -1,0 +1,128 @@
+package com.example.myvocabulary
+
+import android.content.Context
+import androidx.room.Entity
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.PrimaryKey
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+import kotlinx.coroutines.flow.Flow
+import org.json.JSONArray
+import org.json.JSONObject
+
+@Dao
+interface VocabularyDao {
+    @Query("SELECT * FROM vocabulary_words ORDER BY english COLLATE NOCASE ASC, cree COLLATE NOCASE ASC")
+    fun observeAllWords(): Flow<List<VocabularyWord>>
+
+    @Query("SELECT * FROM vocabulary_words ORDER BY english COLLATE NOCASE ASC, cree COLLATE NOCASE ASC")
+    suspend fun getAllWords(): List<VocabularyWord>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(words: List<VocabularyWord>)
+
+    @Query("DELETE FROM vocabulary_words")
+    suspend fun clearAll()
+}
+
+@Entity(tableName = "dictionary_sync_state")
+data class DictionarySyncState(
+    @PrimaryKey val name: String,
+    val isComplete: Boolean,
+    val lastSyncedAtMillis: Long,
+    val syncedWords: Int,
+    val totalWords: Int
+)
+
+@Dao
+interface DictionarySyncStateDao {
+    @Query("SELECT * FROM dictionary_sync_state WHERE name = :name LIMIT 1")
+    suspend fun getState(name: String): DictionarySyncState?
+
+    @Query("SELECT * FROM dictionary_sync_state WHERE name = :name LIMIT 1")
+    fun observeState(name: String): Flow<DictionarySyncState?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(state: DictionarySyncState)
+}
+
+@Database(
+    entities = [VocabularyWord::class, DictionarySyncState::class],
+    version = 2,
+    exportSchema = false
+)
+@TypeConverters(VocabularyConverters::class)
+abstract class VocabularyDatabase : RoomDatabase() {
+    abstract fun vocabularyDao(): VocabularyDao
+    abstract fun syncStateDao(): DictionarySyncStateDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: VocabularyDatabase? = null
+
+        fun getInstance(context: Context): VocabularyDatabase {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    VocabularyDatabase::class.java,
+                    "my_vocabulary.db"
+                ).fallbackToDestructiveMigration(true).build().also { INSTANCE = it }
+            }
+        }
+    }
+}
+
+class VocabularyConverters {
+    @TypeConverter
+    fun subjectToString(subject: SubjectFilter): String = subject.name
+
+    @TypeConverter
+    fun stringToSubject(value: String): SubjectFilter {
+        return runCatching { SubjectFilter.valueOf(value) }.getOrElse { SubjectFilter.All }
+    }
+
+    @TypeConverter
+    fun listToJson(value: List<String>): String = JSONArray(value).toString()
+
+    @TypeConverter
+    fun jsonToList(value: String): List<String> {
+        if (value.isBlank()) return emptyList()
+        val array = JSONArray(value)
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optString(index).trim()
+                if (item.isNotBlank()) {
+                    add(item)
+                }
+            }
+        }
+    }
+
+    @TypeConverter
+    fun morphologyToJson(value: DetailedMorphology): String = JSONObject().apply {
+        put("stem", value.stem)
+        put("stemMeaning", value.stemMeaning)
+        put("suffix", value.suffix)
+        put("suffixMeaning", value.suffixMeaning)
+        put("grammaticalForm", value.grammaticalForm)
+    }.toString()
+
+    @TypeConverter
+    fun jsonToMorphology(value: String): DetailedMorphology {
+        if (value.isBlank()) return DetailedMorphology()
+        val json = JSONObject(value)
+        return DetailedMorphology(
+            stem = json.optString("stem"),
+            stemMeaning = json.optString("stemMeaning"),
+            suffix = json.optString("suffix"),
+            suffixMeaning = json.optString("suffixMeaning"),
+            grammaticalForm = json.optString("grammaticalForm")
+        )
+    }
+}

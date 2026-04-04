@@ -1,5 +1,11 @@
 package com.example.myvocabulary
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+
 enum class Screen(val route: String, val label: String) {
     Home("home", "Home"),
     Categories("categories", "Categories"),
@@ -70,8 +76,9 @@ data class DetailedMorphology(
     val grammaticalForm: String = ""
 )
 
+@Entity(tableName = "vocabulary_words")
 data class VocabularyWord(
-    val id: String,
+    @PrimaryKey val id: String,
     val cree: String,
     val english: String,
     val partOfSpeech: String,
@@ -84,7 +91,8 @@ data class VocabularyWord(
     val relatedSemanticRelationLabels: List<String> = emptyList(),
     val morphology: String = "",
     val detailedMorphology: DetailedMorphology = DetailedMorphology(),
-    val icon: String
+    val icon: String,
+    val remoteUuid: String = ""
 )
 
 data class CategoryCard(
@@ -95,7 +103,27 @@ data class CategoryCard(
     val icon: String
 )
 
-val vocabularyWords = listOf(
+data class BrowseItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val detail: String = "",
+    val icon: String = "",
+    val entryCount: Int = 0,
+    val remoteUuid: String = "",
+    val vocabularyWord: VocabularyWord? = null
+)
+
+data class BrowseSection(
+    val controller: String,
+    val title: String,
+    val count: Int,
+    val pageCount: Int,
+    val tiles: List<String>,
+    val items: List<BrowseItem>
+)
+
+private val fallbackVocabularyWords = listOf(
     VocabularyWord(
         id = "wapos",
         cree = "Wâpos",
@@ -1175,16 +1203,33 @@ val vocabularyWords = listOf(
     )
 )
 
+fun seedVocabularyWords(): List<VocabularyWord> = fallbackVocabularyWords
+
 fun morphologyForWord(word: VocabularyWord): String = word.morphology.ifBlank { "Morphology not available." }
 
-val suggestedCategories = listOf(
-    CategoryCard("Animals", "Common animal words", SubjectFilter.Animals, vocabularyWords.count { it.subject == SubjectFilter.Animals }, "AN"),
-    CategoryCard("Body", "Words associated with the body", SubjectFilter.Body, vocabularyWords.count { it.subject == SubjectFilter.Body }, "BD"),
-    CategoryCard("Weather", "Learn vocabulary for the weather", SubjectFilter.Weather, vocabularyWords.count { it.subject == SubjectFilter.Weather }, "WE"),
-    CategoryCard("Words", "Useful words and phrases", SubjectFilter.Words, vocabularyWords.count { it.subject == SubjectFilter.Words }, "WR"),
-    CategoryCard("Foods", "Food and cooking terms", SubjectFilter.Foods, vocabularyWords.count { it.subject == SubjectFilter.Foods }, "FD"),
-    CategoryCard("Lands", "Travel and place names", SubjectFilter.Lands, vocabularyWords.count { it.subject == SubjectFilter.Lands }, "LD")
-)
+object VocabularyCatalog {
+    var words by mutableStateOf(fallbackVocabularyWords)
+}
+
+object BrowseCatalog {
+    var sections by mutableStateOf(emptyList<BrowseSection>())
+}
+
+val vocabularyWords: List<VocabularyWord>
+    get() = VocabularyCatalog.words
+
+val liveBrowseSections: List<BrowseSection>
+    get() = BrowseCatalog.sections
+
+val suggestedCategories: List<CategoryCard>
+    get() = listOf(
+        CategoryCard("Animals", "Common animal words", SubjectFilter.Animals, vocabularyWords.count { it.subject == SubjectFilter.Animals }, "AN"),
+        CategoryCard("Body", "Words associated with the body", SubjectFilter.Body, vocabularyWords.count { it.subject == SubjectFilter.Body }, "BD"),
+        CategoryCard("Weather", "Learn vocabulary for the weather", SubjectFilter.Weather, vocabularyWords.count { it.subject == SubjectFilter.Weather }, "WE"),
+        CategoryCard("Words", "Useful words and phrases", SubjectFilter.Words, vocabularyWords.count { it.subject == SubjectFilter.Words }, "WR"),
+        CategoryCard("Foods", "Food and cooking terms", SubjectFilter.Foods, vocabularyWords.count { it.subject == SubjectFilter.Foods }, "FD"),
+        CategoryCard("Lands", "Travel and place names", SubjectFilter.Lands, vocabularyWords.count { it.subject == SubjectFilter.Lands }, "LD")
+    )
 
 val wordOfDayIds = listOf("wapos", "rain", "heart")
 

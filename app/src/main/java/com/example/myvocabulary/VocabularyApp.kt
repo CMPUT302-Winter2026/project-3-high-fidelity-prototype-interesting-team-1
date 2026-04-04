@@ -3,11 +3,16 @@ package com.example.myvocabulary
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -15,12 +20,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,9 +39,25 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.myvocabulary.ui.theme.MyVocabularyTheme
 
+private data class SearchCacheKey(
+    val query: String,
+    val subject: SubjectFilter,
+    val wordType: WordTypeFilter,
+    val sort: SortOption
+)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VocabularyApp() {
+    val seedWords = remember { seedVocabularyWords() }
+    val context = LocalContext.current
+    val database = remember(context) { VocabularyDatabase.getInstance(context) }
+    val vocabularyDao = remember(database) { database.vocabularyDao() }
+    val syncStateDao = remember(database) { database.syncStateDao() }
+    val dbWords by vocabularyDao.observeAllWords().collectAsState(initial = seedWords)
+    val syncState by syncStateDao.observeState("entries").collectAsState(initial = null)
+    val searchCache = remember { mutableStateMapOf<SearchCacheKey, List<VocabularyWord>>() }
+    var bootstrapped by rememberSaveable { mutableStateOf(false) }
     var homeQuery by rememberSaveable { mutableStateOf("") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchSubject by rememberSaveable { mutableStateOf(SubjectFilter.All) }
@@ -55,13 +81,41 @@ fun VocabularyApp() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Screen.Home.route
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    SideEffect {
+        VocabularyCatalog.words = dbWords
+    }
+    LaunchedEffect(Unit) {
+        val cachedWords = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            vocabularyDao.getAllWords()
+        }
+        if (cachedWords.isEmpty()) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                vocabularyDao.upsertAll(seedWords)
+            }
+        }
+
+        val currentState = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            syncStateDao.getState("entries")
+        }
+        if (currentState?.isComplete != true) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                CreeDictionaryRepository.syncAllEntriesIntoRoom(vocabularyDao, syncStateDao)
+            }
+        }
+        bootstrapped = true
+    }
+    val vocabularyWordsById = remember(vocabularyWords) {
+        buildMap {
+            vocabularyWords.forEach { word ->
+                put(word.id.lowercase(), word)
+                put(word.cree.lowercase(), word)
+                put(word.english.lowercase(), word)
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
         recentSearches = recentSearches.mapNotNull { term ->
-            vocabularyWords.firstOrNull {
-                it.id.equals(term, ignoreCase = true) ||
-                    it.cree.equals(term, ignoreCase = true) ||
-                    it.english.equals(term, ignoreCase = true)
-            }?.id
+            vocabularyWordsById[term.lowercase()]?.id
         }.distinct()
     }
     androidx.compose.runtime.LaunchedEffect(currentRoute) {
@@ -70,8 +124,32 @@ fun VocabularyApp() {
         }
     }
     val wordOfDayWords = remember(wordOfDayPages) {
-        wordOfDayPages.mapNotNull { id -> vocabularyWords.firstOrNull { it.id == id } }
+        wordOfDayPages.mapNotNull { id -> vocabularyWordsById[id.lowercase()] }
             .ifEmpty { vocabularyWords.take(3) }
+    }
+    val currentSearchKey = SearchCacheKey(searchQuery, searchSubject, searchWordType, searchSort)
+    val currentSearchWords = searchCache[currentSearchKey] ?: searchWords(
+        vocabularyWords,
+        searchQuery,
+        searchSubject,
+        searchWordType,
+        searchSort
+    )
+
+    LaunchedEffect(currentSearchKey, vocabularyWords) {
+        if (searchCache.containsKey(currentSearchKey)) return@LaunchedEffect
+        val results = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            searchWords(vocabularyWords, searchQuery, searchSubject, searchWordType, searchSort)
+        }
+        searchCache[currentSearchKey] = results
+    }
+
+    if (!bootstrapped) {
+        DictionaryLoadingScreen(
+            syncedWords = syncState?.syncedWords ?: 0,
+            totalWords = syncState?.totalWords ?: 0
+        )
+        return
     }
     val currentBottomDestination = when (currentRoute) {
         Screen.Home.route -> Screen.Home
@@ -117,11 +195,7 @@ fun VocabularyApp() {
     }
 
     val onRecentClick: (String) -> Unit = { term ->
-        val matchedWord = vocabularyWords.firstOrNull {
-            it.cree.equals(term, ignoreCase = true) ||
-            it.english.equals(term, ignoreCase = true) ||
-            it.id.equals(term, ignoreCase = true)
-        }
+        val matchedWord = vocabularyWordsById[term.lowercase()]
         if (matchedWord != null) {
             openWord(matchedWord.id)
         } else {
@@ -244,6 +318,7 @@ fun VocabularyApp() {
                     composable(Screen.Search.route) {
                         SearchResultsScreen(
                             query = searchQuery,
+                            filteredWords = currentSearchWords,
                             subjectFilter = searchSubject,
                             wordTypeFilter = searchWordType,
                             sortOption = searchSort,
@@ -269,13 +344,11 @@ fun VocabularyApp() {
                         arguments = listOf(navArgument("wordId") { type = NavType.StringType })
                     ) { entry ->
                         val wordId = entry.arguments?.getString("wordId")
-                        val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
+                        val word = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
 
                         WordDetailsScreen(
                             word = word,
-                            relatedWords = word.relatedWordIds.mapNotNull { id ->
-                                vocabularyWords.firstOrNull { it.id == id }
-                            },
+                            relatedWords = word.relatedWordIds.mapNotNull { id -> vocabularyWordsById[id.lowercase()] },
                             showMorphology = showMorphology,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
@@ -292,13 +365,11 @@ fun VocabularyApp() {
                         arguments = listOf(navArgument("wordId") { type = NavType.StringType })
                     ) { entry ->
                         val wordId = entry.arguments?.getString("wordId")
-                        val word = vocabularyWords.firstOrNull { it.id == wordId } ?: vocabularyWords.first()
+                        val word = wordId?.let { vocabularyWordsById[it.lowercase()] } ?: vocabularyWords.first()
 
                         SemanticMapScreen(
                             word = word,
-                            relatedWords = word.relatedWordIds.mapNotNull { id ->
-                                vocabularyWords.firstOrNull { it.id == id }
-                            },
+                            relatedWords = word.relatedWordIds.mapNotNull { id -> vocabularyWordsById[id.lowercase()] },
                             showSemanticRelationLabels = showSemanticRelationLabels,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
@@ -372,3 +443,13 @@ private val bottomNavItems = listOf(
     BottomNavItem(Screen.Categories, Icons.Filled.Category),
     BottomNavItem(Screen.Settings, Icons.Filled.Settings)
 )
+
+private fun mergeVocabularyWords(
+    existing: List<VocabularyWord>,
+    additions: List<VocabularyWord>
+): List<VocabularyWord> {
+    val merged = linkedMapOf<String, VocabularyWord>()
+    existing.forEach { merged[it.id] = it }
+    additions.forEach { merged[it.id] = it }
+    return merged.values.toList()
+}
