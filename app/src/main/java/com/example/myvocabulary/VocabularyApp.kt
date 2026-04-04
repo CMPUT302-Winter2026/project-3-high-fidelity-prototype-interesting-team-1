@@ -90,26 +90,6 @@ private fun rememberWordDetailState(
         value = WordDetailUiState(cachedBundle ?: value.bundle, isLoading = false)
     }
 
-@Composable
-private fun DictionaryRelationLoadingContent(title: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-    }
-}
-
 data class DictionaryStartupSnapshot(
     val cachedWords: List<VocabularyWord>,
     val syncState: DictionarySyncState?,
@@ -463,11 +443,6 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                         )
                         val detailState = detailBundleState.value
 
-                        if (detailState.isLoading && detailState.bundle.relatedWords.isEmpty()) {
-                            DictionaryRelationLoadingContent("Loading word details")
-                            return@composable
-                        }
-
                         WordDetailsScreen(
                             word = detailState.bundle.word,
                             relatedWords = detailState.bundle.relatedWords,
@@ -494,11 +469,6 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                             vocabularyDao = vocabularyDao
                         )
                         val detailState = detailBundleState.value
-
-                        if (detailState.isLoading && detailState.bundle.relatedWords.isEmpty()) {
-                            DictionaryRelationLoadingContent("Loading semantic map")
-                            return@composable
-                        }
 
                         SemanticMapScreen(
                             word = detailState.bundle.word,
