@@ -82,6 +82,10 @@ abstract class VocabularyDatabase : RoomDatabase() {
 }
 
 class VocabularyConverters {
+    private val morphologyRegex = Regex(
+        "\"(stem|stemMeaning|suffix|suffixMeaning|grammaticalForm)\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\""
+    )
+
     @TypeConverter
     fun subjectToString(subject: SubjectFilter): String = subject.name
 
@@ -96,15 +100,17 @@ class VocabularyConverters {
     @TypeConverter
     fun jsonToList(value: String): List<String> {
         if (value.isBlank()) return emptyList()
-        val array = JSONArray(value)
-        return buildList {
-            for (index in 0 until array.length()) {
-                val item = array.optString(index).trim()
-                if (item.isNotBlank()) {
-                    add(item)
+        return runCatching {
+            val array = JSONArray(value)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optString(index).trim()
+                    if (item.isNotBlank()) {
+                        add(item)
+                    }
                 }
             }
-        }
+        }.getOrElse { emptyList() }
     }
 
     @TypeConverter
@@ -119,13 +125,42 @@ class VocabularyConverters {
     @TypeConverter
     fun jsonToMorphology(value: String): DetailedMorphology {
         if (value.isBlank()) return DetailedMorphology()
-        val json = JSONObject(value)
+        return runCatching {
+            val json = JSONObject(value)
+            DetailedMorphology(
+                stem = json.optString("stem"),
+                stemMeaning = json.optString("stemMeaning"),
+                suffix = json.optString("suffix"),
+                suffixMeaning = json.optString("suffixMeaning"),
+                grammaticalForm = json.optString("grammaticalForm")
+            )
+        }.getOrElse {
+            parseMorphologyFallback(value)
+        }
+    }
+
+    private fun parseMorphologyFallback(value: String): DetailedMorphology {
+        val matches = morphologyRegex.findAll(value).associate { match ->
+            match.groupValues[1] to match.groupValues[2]
+        }
+        if (matches.isEmpty()) return DetailedMorphology()
         return DetailedMorphology(
-            stem = json.optString("stem"),
-            stemMeaning = json.optString("stemMeaning"),
-            suffix = json.optString("suffix"),
-            suffixMeaning = json.optString("suffixMeaning"),
-            grammaticalForm = json.optString("grammaticalForm")
+            stem = matches["stem"].orEmpty().unescapeJsonText(),
+            stemMeaning = matches["stemMeaning"].orEmpty().unescapeJsonText(),
+            suffix = matches["suffix"].orEmpty().unescapeJsonText(),
+            suffixMeaning = matches["suffixMeaning"].orEmpty().unescapeJsonText(),
+            grammaticalForm = matches["grammaticalForm"].orEmpty().unescapeJsonText()
         )
+    }
+
+    private fun String.unescapeJsonText(): String {
+        return replace("\\\\", "\\")
+            .replace("\\\"", "\"")
+            .replace("\\/", "/")
+            .replace("\\b", "\b")
+            .replace("\\f", "\u000C")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
     }
 }
