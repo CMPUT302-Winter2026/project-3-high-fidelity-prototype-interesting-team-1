@@ -206,6 +206,8 @@ fun HomeScreen(
                         placeholder = "Search Cree or English",
                         onSearch = { _ -> onSearch() }
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SearchSupportNote()
                     Spacer(modifier = Modifier.height(32.dp))
                     SectionTitle("Words of the Day")
                     Spacer(modifier = Modifier.height(16.dp))
@@ -523,6 +525,8 @@ fun SearchResultsScreen(
                     placeholder = "Search for a word",
                     onSearch = onSubmitSearch
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                SearchSupportNote()
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Query: ${query.ifBlank { "All words" }}",
@@ -674,6 +678,7 @@ fun CategoriesScreen(
                         placeholder = "Search categories or words",
                         onSearch = { _ -> }
                     )
+                    SearchSupportNote()
                 }
             }
             item {
@@ -747,6 +752,7 @@ fun WordDetailsScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var playbackMessage by remember { mutableStateOf<String?>(null) }
     var expertSettingsExpanded by remember(word.id) { mutableStateOf(false) }
+    val displayedRelatedWords = remember(relatedWords) { relatedWords.take(10) }
 
     LaunchedEffect(playbackMessage) {
         playbackMessage?.let {
@@ -854,7 +860,7 @@ fun WordDetailsScreen(
             }
             item {
                 SectionTitle("Related Words")
-                relatedWords.forEach { relatedWord ->
+                displayedRelatedWords.forEach { relatedWord ->
                     RelatedWordItem(
                         word = relatedWord,
                         primaryLanguage = primaryLanguage,
@@ -1043,7 +1049,15 @@ fun ExpertModeScreen(
     inlineTranslations: Boolean,
     onBack: () -> Unit
 ) {
-    val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
+    val fallbackWords = remember { seedVocabularyWords() }
+    val previewWord = remember(vocabularyWords, fallbackWords) {
+        vocabularyWords.firstOrNull { it.id == "wapos" } ?: fallbackWords.first()
+    }
+    val semanticPreviewWord = remember(vocabularyWords, fallbackWords) {
+        vocabularyWords.firstOrNull { it.id == "rain" }
+            ?: fallbackWords.firstOrNull { it.id == "rain" }
+            ?: fallbackWords.first()
+    }
 
     VocabularyScreenSurface {
         LazyColumn(
@@ -1105,6 +1119,7 @@ fun ExpertModeScreen(
                         }
                     )
                     SemanticMapPreviewCard(
+                        previewWord = semanticPreviewWord,
                         showSemanticRelationLabels = showSemanticRelationLabels,
                         primaryLanguage = primaryLanguage,
                         inlineTranslations = inlineTranslations,
@@ -1276,6 +1291,16 @@ fun SearchField(
             unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
             cursorColor = Accent
         )
+    )
+}
+
+@Composable
+private fun SearchSupportNote() {
+    Text(
+        text = "Search is forgiving. You do not need accents, and small misspellings are okay too.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 2.dp)
     )
 }
 
@@ -2186,6 +2211,7 @@ fun MorphologyRow(
 
 @Composable
 fun SemanticMapPreviewCard(
+    previewWord: VocabularyWord,
     showSemanticRelationLabels: Boolean = false,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean,
@@ -2193,10 +2219,13 @@ fun SemanticMapPreviewCard(
     modifier: Modifier = Modifier,
     onWordClick: (String) -> Unit = {}
 ) {
-    val previewWord = vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first()
-    val relatedWords = previewWord.relatedWordIds.mapNotNull { id ->
-        vocabularyWords.firstOrNull { it.id == id }
+    val previewCatalog = remember(vocabularyWords) {
+        buildMap {
+            seedVocabularyWords().forEach { put(it.id, it) }
+            vocabularyWords.forEach { put(it.id, it) }
+        }
     }
+    val relatedWords = previewWord.relatedWordIds.mapNotNull { id -> previewCatalog[id] }
     Box(modifier = modifier) {
         WordSemanticMapCard(
             word = previewWord,
@@ -2314,8 +2343,9 @@ fun WordSemanticMapCard(
 ) {
     val centerAccent = Accent
     val density = LocalDensity.current
+    val displayedRelatedWords = remember(relatedWords) { relatedWords.take(10) }
     val layout = rememberSemanticMapLayout(
-        relationCount = relatedWords.size,
+        relationCount = displayedRelatedWords.size,
         expandedMapLayout = expandedMapLayout,
         showSemanticRelationLabels = showSemanticRelationLabels
     )
@@ -2337,8 +2367,8 @@ fun WordSemanticMapCard(
             id to word.relatedSemanticRelationLabels.getOrElse(index) { "" }
         }.toMap()
     }
-    val relations = remember(word.id, relatedWords, layout, relationLabelByTargetId) {
-        relatedWords.mapIndexed { index, relatedWord ->
+    val relations = remember(word.id, displayedRelatedWords, layout, relationLabelByTargetId) {
+        displayedRelatedWords.mapIndexed { index, relatedWord ->
             val label = relationLabelByTargetId[relatedWord.id]
                 ?.takeIf { it.isNotBlank() }
                 ?: inferredSemanticRelationLabel(word, relatedWord)
@@ -2632,6 +2662,37 @@ private fun inferredSemanticRelationLabel(
     word: VocabularyWord,
     relatedWord: VocabularyWord
 ): String {
+    fun weatherRelationLabel(sourceId: String, targetId: String): String? {
+        val pair = setOf(sourceId, targetId)
+        return when {
+            pair == setOf("rain", "snow") -> "PRECIPITATION PEER"
+            pair == setOf("rain", "cloud") -> "RAIN SOURCE"
+            pair == setOf("rain", "wind") -> "STORM COMPANION"
+            pair == setOf("rain", "thunder") -> "STORM SIGNAL"
+            pair == setOf("rain", "cold") -> "TEMPERATURE LINK"
+            pair == setOf("snow", "wind") -> "BLIZZARD COMPANION"
+            pair == setOf("snow", "cold") -> "COLD-WEATHER PAIR"
+            pair == setOf("cloud", "wind") -> "SKY MOVEMENT LINK"
+            pair == setOf("cloud", "thunder") -> "STORM CLOUD LINK"
+            pair == setOf("wind", "thunder") -> "STORM BUILDUP"
+            else -> null
+        }
+    }
+
+    fun wordsRelationLabel(source: VocabularyWord, target: VocabularyWord): String {
+        val pair = setOf(source.id, target.id)
+        return when {
+            pair.intersect(setOf("yes", "no")).size == 2 -> "RESPONSE OPPOSITE"
+            pair.contains("hello") && pair.contains("thanks") -> "SOCIAL EXPRESSION"
+            pair.contains("hello") || pair.contains("thanks") -> "COMMON EXPRESSION"
+            source.partOfSpeech.equals("adjective", ignoreCase = true) ||
+                target.partOfSpeech.equals("adjective", ignoreCase = true) -> "DESCRIPTIVE TERM"
+            source.partOfSpeech.equals("phrase", ignoreCase = true) ||
+                target.partOfSpeech.equals("phrase", ignoreCase = true) -> "EVERYDAY PHRASE"
+            else -> "EVERYDAY EXPRESSION"
+        }
+    }
+
     if (word.partOfSpeech.equals("adjective", ignoreCase = true) &&
         relatedWord.partOfSpeech.equals("noun", ignoreCase = true)
     ) {
@@ -2655,16 +2716,24 @@ private fun inferredSemanticRelationLabel(
 
     if (word.subject == relatedWord.subject) {
         return when (word.subject) {
-            SubjectFilter.Animals -> "RELATED ANIMAL"
-            SubjectFilter.Body -> "BODY TERM"
-            SubjectFilter.Weather -> "WEATHER TERM"
-            SubjectFilter.Foods -> "FOOD TERM"
-            SubjectFilter.Lands -> "PLACE TERM"
-            SubjectFilter.Words, SubjectFilter.All -> "RELATED WORD"
+            SubjectFilter.Animals -> "ANIMAL PEER"
+            SubjectFilter.Body -> "BODY FEATURE"
+            SubjectFilter.Weather -> weatherRelationLabel(word.id, relatedWord.id) ?: "WEATHER PATTERN"
+            SubjectFilter.Foods -> "FOOD PAIRING"
+            SubjectFilter.Lands -> "PLACE LINK"
+            SubjectFilter.Words -> wordsRelationLabel(word, relatedWord)
+            SubjectFilter.All -> "MEANING LINK"
         }
     }
 
-    return "ASSOCIATED TERM"
+    return when {
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Animals, SubjectFilter.Lands) -> "HABITAT LINK"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Foods, SubjectFilter.Lands) -> "PLACE OF USE"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Foods, SubjectFilter.Weather) -> "SEASONAL LINK"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Body, SubjectFilter.Words) -> "COMMON USAGE"
+        word.subject == SubjectFilter.Weather || relatedWord.subject == SubjectFilter.Weather -> "WEATHER LINK"
+        else -> "MEANING LINK"
+    }
 }
 
 @Composable

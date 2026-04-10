@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import java.text.Normalizer
 
 enum class Screen(val route: String, val label: String) {
     Home("home", "Home"),
@@ -1233,6 +1234,53 @@ val suggestedCategories: List<CategoryCard>
 
 val wordOfDayIds = listOf("wapos", "rain", "heart")
 
+private fun normalizeSearchText(value: String): String {
+    val decomposed = Normalizer.normalize(value, Normalizer.Form.NFD)
+    return decomposed
+        .replace(Regex("\\p{M}+"), "")
+        .lowercase()
+        .replace(Regex("[^\\p{Alnum}\\s]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
+private fun tokenizeSearchText(value: String): List<String> =
+    normalizeSearchText(value).split(Regex("\\s+")).filter { it.isNotBlank() }
+
+private fun typoTolerance(token: String): Int = when {
+    token.length >= 8 -> 2
+    token.length >= 5 -> 1
+    else -> 0
+}
+
+private fun isWithinEditDistance(left: String, right: String, maxDistance: Int): Boolean {
+    if (maxDistance < 0) return false
+    if (left == right) return true
+    if (kotlin.math.abs(left.length - right.length) > maxDistance) return false
+
+    val previous = IntArray(right.length + 1) { it }
+    val current = IntArray(right.length + 1)
+
+    for (i in 1..left.length) {
+        current[0] = i
+        var rowMin = current[0]
+        for (j in 1..right.length) {
+            val cost = if (left[i - 1] == right[j - 1]) 0 else 1
+            current[j] = minOf(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + cost
+            )
+            rowMin = minOf(rowMin, current[j])
+        }
+        if (rowMin > maxDistance) return false
+        for (j in previous.indices) {
+            previous[j] = current[j]
+        }
+    }
+    return previous[right.length] <= maxDistance
+}
+
 fun VocabularyWord.matches(query: String, subject: SubjectFilter, wordType: WordTypeFilter): Boolean {
     val subjectMatches = subject == SubjectFilter.All || this.subject == subject
     val typeMatches = wordType == WordTypeFilter.All ||
@@ -1266,41 +1314,61 @@ fun searchWords(
 }
 
 private fun VocabularyWord.searchScore(query: String): Int {
-    val normalizedQuery = query.trim().lowercase()
+    val normalizedQuery = normalizeSearchText(query)
     if (normalizedQuery.isBlank()) return 0
 
     val tokens = normalizedQuery.split(Regex("\\s+")).filter { it.isNotBlank() }
+    val normalizedId = normalizeSearchText(id)
+    val normalizedCree = normalizeSearchText(cree)
+    val normalizedEnglish = normalizeSearchText(english)
+    val normalizedPartOfSpeech = normalizeSearchText(partOfSpeech)
+    val normalizedCategoryLabel = normalizeSearchText(categoryLabel)
+    val normalizedExampleTitle = normalizeSearchText(exampleTitle)
+    val normalizedExampleSentence = normalizeSearchText(exampleSentence)
+    val normalizedMorphology = normalizeSearchText(morphology)
+    val normalizedRelatedWordIds = normalizeSearchText(relatedWordIds.joinToString(" "))
     val searchableFields = listOf(
-        id.lowercase(),
-        cree.lowercase(),
-        english.lowercase(),
-        partOfSpeech.lowercase(),
-        categoryLabel.lowercase(),
-        exampleTitle.lowercase(),
-        exampleSentence.lowercase(),
-        morphology.lowercase(),
-        relatedWordIds.joinToString(" ").lowercase()
+        normalizedId,
+        normalizedCree,
+        normalizedEnglish,
+        normalizedPartOfSpeech,
+        normalizedCategoryLabel,
+        normalizedExampleTitle,
+        normalizedExampleSentence,
+        normalizedMorphology,
+        normalizedRelatedWordIds
     )
     val searchable = searchableFields.joinToString(" ")
+    val searchableTokens = searchableFields.flatMap(::tokenizeSearchText).distinct()
 
     var score = 0
     if (searchable.contains(normalizedQuery)) score += 20
-    if (cree.equals(normalizedQuery, ignoreCase = true)) score += 100
-    if (english.equals(normalizedQuery, ignoreCase = true)) score += 90
-    if (id.equals(normalizedQuery, ignoreCase = true)) score += 80
-    if (categoryLabel.equals(normalizedQuery, ignoreCase = true)) score += 50
-    if (partOfSpeech.equals(normalizedQuery, ignoreCase = true)) score += 40
-    if (morphology.contains(normalizedQuery, ignoreCase = true)) score += 30
-    if (exampleSentence.contains(normalizedQuery, ignoreCase = true)) score += 15
+    if (normalizedCree == normalizedQuery) score += 100
+    if (normalizedEnglish == normalizedQuery) score += 90
+    if (normalizedId == normalizedQuery) score += 80
+    if (normalizedCategoryLabel == normalizedQuery) score += 50
+    if (normalizedPartOfSpeech == normalizedQuery) score += 40
+    if (normalizedMorphology.contains(normalizedQuery)) score += 30
+    if (normalizedExampleSentence.contains(normalizedQuery)) score += 15
+
+    val exactishFields = listOf(normalizedCree, normalizedEnglish, normalizedId)
+    val queryTolerance = typoTolerance(normalizedQuery)
+    if (queryTolerance > 0 && exactishFields.any { isWithinEditDistance(normalizedQuery, it, queryTolerance) }) {
+        score += 55
+    }
 
     tokens.forEach { token ->
+        val tokenTolerance = typoTolerance(token)
         when {
-            cree.contains(token, ignoreCase = true) -> score += 8
-            english.contains(token, ignoreCase = true) -> score += 8
-            id.contains(token, ignoreCase = true) -> score += 7
-            categoryLabel.contains(token, ignoreCase = true) -> score += 5
-            partOfSpeech.contains(token, ignoreCase = true) -> score += 4
-            morphology.contains(token, ignoreCase = true) -> score += 4
+            normalizedCree.contains(token) -> score += 8
+            normalizedEnglish.contains(token) -> score += 8
+            normalizedId.contains(token) -> score += 7
+            normalizedCategoryLabel.contains(token) -> score += 5
+            normalizedPartOfSpeech.contains(token) -> score += 4
+            normalizedMorphology.contains(token) -> score += 4
+            tokenTolerance > 0 && searchableTokens.any { candidate ->
+                candidate.length >= 3 && isWithinEditDistance(token, candidate, tokenTolerance)
+            } -> score += 5
         }
     }
     return score
