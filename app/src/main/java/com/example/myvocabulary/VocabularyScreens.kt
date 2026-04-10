@@ -736,14 +736,18 @@ fun WordDetailsScreen(
     word: VocabularyWord,
     relatedWords: List<VocabularyWord>,
     showMorphology: Boolean,
+    showSemanticRelationLabels: Boolean,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean,
+    onShowMorphologyChange: (Boolean) -> Unit,
+    onShowSemanticRelationLabelsChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit,
     onConnectionsClick: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var playbackMessage by remember { mutableStateOf<String?>(null) }
+    var expertSettingsExpanded by remember(word.id) { mutableStateOf(false) }
 
     LaunchedEffect(playbackMessage) {
         playbackMessage?.let {
@@ -858,6 +862,16 @@ fun WordDetailsScreen(
                 Button(onClick = onConnectionsClick, modifier = Modifier.fillMaxWidth()) {
                     Text("View Word Connections")
                 }
+            }
+            item {
+                WordDetailsExpertSettingsCard(
+                    expanded = expertSettingsExpanded,
+                    onExpandedChange = { expertSettingsExpanded = it },
+                    showMorphology = showMorphology,
+                    onShowMorphologyChange = onShowMorphologyChange,
+                    showSemanticRelationLabels = showSemanticRelationLabels,
+                    onShowSemanticRelationLabelsChange = onShowSemanticRelationLabelsChange
+                )
             }
         }
     }
@@ -1694,6 +1708,113 @@ fun SettingsRow(
 }
 
 @Composable
+private fun WordDetailsExpertSettingsCard(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    showMorphology: Boolean,
+    onShowMorphologyChange: (Boolean) -> Unit,
+    showSemanticRelationLabels: Boolean,
+    onShowSemanticRelationLabelsChange: (Boolean) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Expert Settings",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Show advanced morphology and semantic map details for this entry.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = if (expanded) "Hide expert settings" else "Show expert settings",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+                )
+            }
+
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    ExpertSettingsToggleRow(
+                        title = "Show Morphology",
+                        subtitle = "Display the morphology card on word details.",
+                        checked = showMorphology,
+                        onCheckedChange = onShowMorphologyChange
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    ExpertSettingsToggleRow(
+                        title = "Show Semantic Relation Labels",
+                        subtitle = "Display relationship labels in the semantic map view.",
+                        checked = showSemanticRelationLabels,
+                        onCheckedChange = onShowSemanticRelationLabelsChange
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpertSettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = appSwitchColors()
+        )
+    }
+}
+
+@Composable
 private fun SettingsWordDisplayPreviewCard(
     word: VocabularyWord,
     title: String,
@@ -2508,8 +2629,11 @@ fun WordDetailsScreenPreview() {
             word = word,
             relatedWords = relatedWords,
             showMorphology = true,
+            showSemanticRelationLabels = true,
             primaryLanguage = DisplayLanguage.English,
             inlineTranslations = true,
+            onShowMorphologyChange = {},
+            onShowSemanticRelationLabelsChange = {},
             onBack = {},
             onWordClick = {},
             onConnectionsClick = {}

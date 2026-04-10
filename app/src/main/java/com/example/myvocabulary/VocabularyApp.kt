@@ -447,8 +447,11 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                             word = detailState.bundle.word,
                             relatedWords = detailState.bundle.relatedWords,
                             showMorphology = showMorphology,
+                            showSemanticRelationLabels = showSemanticRelationLabels,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
+                            onShowMorphologyChange = { showMorphology = it },
+                            onShowSemanticRelationLabelsChange = { showSemanticRelationLabels = it },
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord,
                             onConnectionsClick = {
