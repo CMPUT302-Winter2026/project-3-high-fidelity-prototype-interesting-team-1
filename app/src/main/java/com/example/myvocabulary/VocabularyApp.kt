@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
@@ -33,7 +35,10 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -41,6 +46,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.myvocabulary.ui.theme.Accent
+import com.example.myvocabulary.ui.theme.AccentDark
 import com.example.myvocabulary.ui.theme.MyVocabularyTheme
 import kotlinx.coroutines.withContext
 
@@ -145,6 +152,8 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
     var showEntryCounts by rememberSaveable { mutableStateOf(true) }
     var showSemanticRelationLabels by rememberSaveable { mutableStateOf(false) }
     var showMorphology by rememberSaveable { mutableStateOf(false) }
+    var wordScopedMorphologyIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var wordScopedSemanticLabelIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
 
     val effectiveInlineTranslations = primaryLanguage == DisplayLanguage.Both || inlineTranslations
 
@@ -248,6 +257,25 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
         Screen.Settings.route, Screen.Expert.route -> Screen.Settings
         else -> null
     }
+    val currentWordId = backStackEntry?.arguments?.getString("wordId")?.lowercase()
+    val activeExpertSettings = remember(
+        currentWordId,
+        showEntryCounts,
+        showMorphology,
+        showSemanticRelationLabels,
+        wordScopedMorphologyIds,
+        wordScopedSemanticLabelIds
+    ) {
+        buildList {
+            if (showEntryCounts) add("Entry Count")
+            if (showMorphology || (currentWordId != null && currentWordId in wordScopedMorphologyIds)) {
+                add("Show Morphology")
+            }
+            if (showSemanticRelationLabels || (currentWordId != null && currentWordId in wordScopedSemanticLabelIds)) {
+                add("Semantic Relation Labels")
+            }
+        }
+    }
     val navigateToRoute: (String) -> Unit = { route ->
         if (currentRoute != route) {
             navController.navigate(route) {
@@ -314,10 +342,13 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    AppBottomBar(
-                        currentDestination = currentBottomDestination,
-                        onDestinationSelected = openTopLevel
-                    )
+                    Column {
+                        ExpertModeIndicatorBar(activeSettings = activeExpertSettings)
+                        AppBottomBar(
+                            currentDestination = currentBottomDestination,
+                            onDestinationSelected = openTopLevel
+                        )
+                    }
                 }
             ) { padding ->
                 NavHost(
@@ -442,13 +473,26 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                             vocabularyDao = vocabularyDao
                         )
                         val detailState = detailBundleState.value
+                        val normalizedWordId = detailState.bundle.word.id.lowercase()
+                        val localMorphologyEnabled = normalizedWordId in wordScopedMorphologyIds
+                        val localSemanticLabelsEnabled = normalizedWordId in wordScopedSemanticLabelIds
 
                         WordDetailsScreen(
                             word = detailState.bundle.word,
                             relatedWords = detailState.bundle.relatedWords,
-                            showMorphology = showMorphology,
+                            showMorphology = showMorphology || localMorphologyEnabled,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
+                            isMorphologyManagedGlobally = showMorphology,
+                            onShowMorphologyChange = { enabled ->
+                                if (!showMorphology) {
+                                    wordScopedMorphologyIds = if (enabled) {
+                                        (wordScopedMorphologyIds + normalizedWordId).distinct()
+                                    } else {
+                                        wordScopedMorphologyIds.filterNot { it == normalizedWordId }
+                                    }
+                                }
+                            },
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord,
                             onConnectionsClick = {
@@ -469,13 +513,24 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                             vocabularyDao = vocabularyDao
                         )
                         val detailState = detailBundleState.value
+                        val normalizedWordId = detailState.bundle.word.id.lowercase()
 
                         SemanticMapScreen(
                             word = detailState.bundle.word,
                             relatedWords = detailState.bundle.relatedWords,
-                            showSemanticRelationLabels = showSemanticRelationLabels,
+                            showSemanticRelationLabels = showSemanticRelationLabels || normalizedWordId in wordScopedSemanticLabelIds,
                             primaryLanguage = primaryLanguage,
                             inlineTranslations = effectiveInlineTranslations,
+                            isSemanticRelationLabelsManagedGlobally = showSemanticRelationLabels,
+                            onShowSemanticRelationLabelsChange = { enabled ->
+                                if (!showSemanticRelationLabels) {
+                                    wordScopedSemanticLabelIds = if (enabled) {
+                                        (wordScopedSemanticLabelIds + normalizedWordId).distinct()
+                                    } else {
+                                        wordScopedSemanticLabelIds.filterNot { it == normalizedWordId }
+                                    }
+                                }
+                            },
                             onBack = { navController.popBackStack() },
                             onWordClick = openWord
                         )
@@ -494,7 +549,8 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                             },
                             onSeeRecentSearches = {
                                 navigateToRoute(Screen.RecentSearches.route)
-                            }
+                            },
+                            onBack = { navController.popBackStack() }
                         )
                     }
 
@@ -514,6 +570,36 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ExpertModeIndicatorBar(activeSettings: List<String>) {
+    if (activeSettings.isEmpty()) return
+
+    val indicatorBrush = Brush.horizontalGradient(
+        colors = listOf(
+            AccentDark.copy(alpha = 0.96f),
+            Accent.copy(alpha = 0.92f),
+            Accent.copy(alpha = 0.78f)
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(indicatorBrush)
+            .padding(PaddingValues(horizontal = 16.dp, vertical = 6.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "You are using Expert Mode (${activeSettings.joinToString(", ")})",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.surface,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

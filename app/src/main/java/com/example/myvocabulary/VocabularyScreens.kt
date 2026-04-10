@@ -206,6 +206,8 @@ fun HomeScreen(
                         placeholder = "Search Cree or English",
                         onSearch = { _ -> onSearch() }
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SearchSupportNote()
                     Spacer(modifier = Modifier.height(32.dp))
                     SectionTitle("Words of the Day")
                     Spacer(modifier = Modifier.height(16.dp))
@@ -523,6 +525,8 @@ fun SearchResultsScreen(
                     placeholder = "Search for a word",
                     onSearch = onSubmitSearch
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                SearchSupportNote()
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Query: ${query.ifBlank { "All words" }}",
@@ -674,6 +678,7 @@ fun CategoriesScreen(
                         placeholder = "Search categories or words",
                         onSearch = { _ -> }
                     )
+                    SearchSupportNote()
                 }
             }
             item {
@@ -738,12 +743,16 @@ fun WordDetailsScreen(
     showMorphology: Boolean,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean,
+    isMorphologyManagedGlobally: Boolean,
+    onShowMorphologyChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit,
     onConnectionsClick: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var playbackMessage by remember { mutableStateOf<String?>(null) }
+    var expertSettingsExpanded by remember(word.id) { mutableStateOf(false) }
+    val displayedRelatedWords = remember(relatedWords) { relatedWords.take(10) }
 
     LaunchedEffect(playbackMessage) {
         playbackMessage?.let {
@@ -839,13 +848,19 @@ fun WordDetailsScreen(
                 item {
                     MorphologyCard(
                         word = word,
+                        highlighted = true,
                         modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp)
                     )
                 }
             }
             item {
+                Button(onClick = onConnectionsClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("View Word Connections")
+                }
+            }
+            item {
                 SectionTitle("Related Words")
-                relatedWords.forEach { relatedWord ->
+                displayedRelatedWords.forEach { relatedWord ->
                     RelatedWordItem(
                         word = relatedWord,
                         primaryLanguage = primaryLanguage,
@@ -855,9 +870,13 @@ fun WordDetailsScreen(
                 }
             }
             item {
-                Button(onClick = onConnectionsClick, modifier = Modifier.fillMaxWidth()) {
-                    Text("View Word Connections")
-                }
+                WordDetailsExpertSettingsCard(
+                    expanded = expertSettingsExpanded,
+                    onExpandedChange = { expertSettingsExpanded = it },
+                    showMorphology = showMorphology,
+                    isMorphologyManagedGlobally = isMorphologyManagedGlobally,
+                    onShowMorphologyChange = onShowMorphologyChange
+                )
             }
         }
     }
@@ -870,9 +889,13 @@ fun SemanticMapScreen(
     showSemanticRelationLabels: Boolean,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean,
+    isSemanticRelationLabelsManagedGlobally: Boolean,
+    onShowSemanticRelationLabelsChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onWordClick: (String) -> Unit
 ) {
+    var expertSettingsExpanded by remember(word.id) { mutableStateOf(false) }
+
     VocabularyScreenSurface {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -887,18 +910,19 @@ fun SemanticMapScreen(
                     showSemanticRelationLabels = showSemanticRelationLabels,
                     showSecondaryMeanings = inlineTranslations,
                     primaryLanguage = primaryLanguage,
+                    highlighted = showSemanticRelationLabels,
                     expandedMapLayout = false,
                     mapViewportMaxHeight = 300.dp,
                     onWordClick = onWordClick
                 )
             }
             item {
-                Text(
-                    text = "Enable relation labels in Settings → Expert Mode.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                SemanticMapExpertSettingsCard(
+                    expanded = expertSettingsExpanded,
+                    onExpandedChange = { expertSettingsExpanded = it },
+                    showSemanticRelationLabels = showSemanticRelationLabels,
+                    isSemanticRelationLabelsManagedGlobally = isSemanticRelationLabelsManagedGlobally,
+                    onShowSemanticRelationLabelsChange = onShowSemanticRelationLabelsChange
                 )
             }
         }
@@ -912,7 +936,8 @@ fun SettingsScreen(
     inlineTranslations: Boolean,
     onInlineTranslationsChange: (Boolean) -> Unit,
     onOpenExpertMode: () -> Unit,
-    onSeeRecentSearches: () -> Unit
+    onSeeRecentSearches: () -> Unit,
+    onBack: () -> Unit
 ) {
     VocabularyScreenSurface {
         LazyColumn(
@@ -920,7 +945,7 @@ fun SettingsScreen(
             contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = ScrollBouncePadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { ScreenHeader(title = "Settings") }
+            item { ScreenHeader(title = "Settings", onBack = onBack) }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionTitle("General Settings")
@@ -1005,12 +1030,7 @@ fun SettingsScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionTitle("Expert Settings")
-                    SettingsRow(
-                        title = "Expert Mode",
-                        subtitle = "Advanced language tools",
-                        onClick = onOpenExpertMode,
-                        trailing = { Text("›", style = MaterialTheme.typography.headlineSmall) }
-                    )
+                    ExpertModeSettingsButton(onClick = onOpenExpertMode)
                 }
             }
         }
@@ -1029,7 +1049,15 @@ fun ExpertModeScreen(
     inlineTranslations: Boolean,
     onBack: () -> Unit
 ) {
-    val previewWord = remember { vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first() }
+    val fallbackWords = remember { seedVocabularyWords() }
+    val previewWord = remember(vocabularyWords, fallbackWords) {
+        vocabularyWords.firstOrNull { it.id == "wapos" } ?: fallbackWords.first()
+    }
+    val semanticPreviewWord = remember(vocabularyWords, fallbackWords) {
+        vocabularyWords.firstOrNull { it.id == "rain" }
+            ?: fallbackWords.firstOrNull { it.id == "rain" }
+            ?: fallbackWords.first()
+    }
 
     VocabularyScreenSurface {
         LazyColumn(
@@ -1075,6 +1103,7 @@ fun ExpertModeScreen(
                     MorphologyCard(
                         word = previewWord,
                         title = "Morphology Preview",
+                        highlighted = true,
                         modifier = Modifier.padding(start = 16.dp)
                     )
                     
@@ -1090,9 +1119,11 @@ fun ExpertModeScreen(
                         }
                     )
                     SemanticMapPreviewCard(
+                        previewWord = semanticPreviewWord,
                         showSemanticRelationLabels = showSemanticRelationLabels,
                         primaryLanguage = primaryLanguage,
                         inlineTranslations = inlineTranslations,
+                        highlighted = true,
                         modifier = Modifier.padding(start = 16.dp)
                     )
                 }
@@ -1260,6 +1291,16 @@ fun SearchField(
             unfocusedIndicatorColor = MaterialTheme.colorScheme.outline,
             cursorColor = Accent
         )
+    )
+}
+
+@Composable
+private fun SearchSupportNote() {
+    Text(
+        text = "Search is forgiving. You do not need accents, and small misspellings are okay too.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 2.dp)
     )
 }
 
@@ -1694,6 +1735,267 @@ fun SettingsRow(
 }
 
 @Composable
+private fun WordDetailsExpertSettingsCard(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    showMorphology: Boolean,
+    isMorphologyManagedGlobally: Boolean,
+    onShowMorphologyChange: (Boolean) -> Unit
+) {
+    val expertBrush = rememberExpertModeBrush()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(expertBrush)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Expert Settings",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = androidx.compose.ui.graphics.Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Show advanced morphology and semantic map details for this entry.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = if (expanded) "Hide expert settings" else "Show expert settings",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+                )
+            }
+
+            if (expanded) {
+                HorizontalDivider(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.22f))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        ExpertSettingsToggleRow(
+                            title = "Show Morphology",
+                            subtitle = if (isMorphologyManagedGlobally) {
+                                "Enabled for all words from Expert Mode."
+                            } else {
+                                "Display the morphology card for this word only."
+                            },
+                            checked = showMorphology,
+                            enabled = !isMorphologyManagedGlobally,
+                            onCheckedChange = onShowMorphologyChange,
+                            useLightText = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SemanticMapExpertSettingsCard(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    showSemanticRelationLabels: Boolean,
+    isSemanticRelationLabelsManagedGlobally: Boolean,
+    onShowSemanticRelationLabelsChange: (Boolean) -> Unit
+) {
+    val expertBrush = rememberExpertModeBrush()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(expertBrush)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Expert Settings",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = androidx.compose.ui.graphics.Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Show advanced semantic map details for this word.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = if (expanded) "Hide expert settings" else "Show expert settings",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+                )
+            }
+
+            if (expanded) {
+                HorizontalDivider(color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.22f))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        ExpertSettingsToggleRow(
+                            title = "Show Semantic Relation Labels",
+                            subtitle = if (isSemanticRelationLabelsManagedGlobally) {
+                                "Enabled for all words from Expert Mode."
+                            } else {
+                                "Display relationship labels for this word only."
+                            },
+                            checked = showSemanticRelationLabels,
+                            enabled = !isSemanticRelationLabelsManagedGlobally,
+                            onCheckedChange = onShowSemanticRelationLabelsChange,
+                            useLightText = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpertSettingsToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+    useLightText: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (useLightText) {
+                    androidx.compose.ui.graphics.Color.White
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (useLightText) {
+                    androidx.compose.ui.graphics.Color.White.copy(alpha = if (enabled) 0.9f else 0.72f)
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            colors = appSwitchColors()
+        )
+    }
+}
+
+@Composable
+private fun ExpertModeSettingsButton(onClick: () -> Unit) {
+    val brush = rememberExpertModeBrush()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(brush)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 18.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Expert Mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Advanced language tools",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+                )
+            }
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.headlineSmall,
+                color = androidx.compose.ui.graphics.Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberExpertModeBrush(): Brush {
+    val colorScheme = MaterialTheme.colorScheme
+    return remember(colorScheme.primaryContainer, colorScheme.primary, colorScheme.tertiaryContainer) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                AccentDark.copy(alpha = 0.96f),
+                Accent.copy(alpha = 0.92f),
+                Accent.copy(alpha = 0.78f)
+            )
+        )
+    }
+}
+
+@Composable
 private fun SettingsWordDisplayPreviewCard(
     word: VocabularyWord,
     title: String,
@@ -1779,53 +2081,87 @@ private fun appSwitchColors() = SwitchDefaults.colors(
 fun MorphologyCard(
     word: VocabularyWord,
     modifier: Modifier = Modifier,
-    title: String? = null
+    title: String? = null,
+    highlighted: Boolean = false
 ) {
+    val containerBrush = if (highlighted) rememberExpertModeBrush() else null
+    val outerContainerColor = if (highlighted) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surface
+    val innerContainerColor = if (highlighted) {
+        androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f)
+    } else {
+        MaterialTheme.colorScheme.background
+    }
+    val titleColor = if (highlighted) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary
+    val labelColor = if (highlighted) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.primary
+    val valueColor = if (highlighted) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurface
+    val descriptionColor = if (highlighted) {
+        androidx.compose.ui.graphics.Color.White.copy(alpha = 0.88f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    }
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = outerContainerColor),
         shape = RoundedCornerShape(18.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            title?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
+        Box(
+            modifier = if (containerBrush != null) {
+                Modifier.background(containerBrush)
+            } else {
+                Modifier
             }
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                title?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = titleColor
+                    )
+                }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = innerContainerColor),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (word.detailedMorphology.stem.isNotBlank()) {
-                        MorphologyRow(
-                            label = "stem:",
-                            value = word.detailedMorphology.stem,
-                            description = if (word.detailedMorphology.stemMeaning.isNotBlank()) "“${word.detailedMorphology.stemMeaning}”" else ""
-                        )
-                    }
-                    if (word.detailedMorphology.suffix.isNotBlank()) {
-                        MorphologyRow(
-                            label = "suffix:",
-                            value = word.detailedMorphology.suffix,
-                            description = if (word.detailedMorphology.suffixMeaning.isNotBlank()) "“${word.detailedMorphology.suffixMeaning}”" else ""
-                        )
-                    }
-                    if (word.detailedMorphology.grammaticalForm.isNotBlank()) {
-                        MorphologyRow(
-                            label = "grammatical form:",
-                            value = word.detailedMorphology.grammaticalForm,
-                            description = ""
-                        )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (word.detailedMorphology.stem.isNotBlank()) {
+                            MorphologyRow(
+                                label = "stem:",
+                                value = word.detailedMorphology.stem,
+                                description = if (word.detailedMorphology.stemMeaning.isNotBlank()) "“${word.detailedMorphology.stemMeaning}”" else "",
+                                labelColor = labelColor,
+                                valueColor = valueColor,
+                                descriptionColor = descriptionColor
+                            )
+                        }
+                        if (word.detailedMorphology.suffix.isNotBlank()) {
+                            MorphologyRow(
+                                label = "suffix:",
+                                value = word.detailedMorphology.suffix,
+                                description = if (word.detailedMorphology.suffixMeaning.isNotBlank()) "“${word.detailedMorphology.suffixMeaning}”" else "",
+                                labelColor = labelColor,
+                                valueColor = valueColor,
+                                descriptionColor = descriptionColor
+                            )
+                        }
+                        if (word.detailedMorphology.grammaticalForm.isNotBlank()) {
+                            MorphologyRow(
+                                label = "grammatical form:",
+                                value = word.detailedMorphology.grammaticalForm,
+                                description = "",
+                                labelColor = labelColor,
+                                valueColor = valueColor,
+                                descriptionColor = descriptionColor
+                            )
+                        }
                     }
                 }
             }
@@ -1834,7 +2170,14 @@ fun MorphologyCard(
 }
 
 @Composable
-fun MorphologyRow(label: String, value: String, description: String) {
+fun MorphologyRow(
+    label: String,
+    value: String,
+    description: String,
+    labelColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+    descriptionColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1842,7 +2185,7 @@ fun MorphologyRow(label: String, value: String, description: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            color = labelColor,
             modifier = Modifier.width(130.dp)
         )
         Row(
@@ -1853,13 +2196,13 @@ fun MorphologyRow(label: String, value: String, description: String) {
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
+                color = valueColor
             )
             if (description.isNotBlank()) {
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    color = descriptionColor
                 )
             }
         }
@@ -1868,16 +2211,21 @@ fun MorphologyRow(label: String, value: String, description: String) {
 
 @Composable
 fun SemanticMapPreviewCard(
+    previewWord: VocabularyWord,
     showSemanticRelationLabels: Boolean = false,
     primaryLanguage: DisplayLanguage,
     inlineTranslations: Boolean,
+    highlighted: Boolean = false,
     modifier: Modifier = Modifier,
     onWordClick: (String) -> Unit = {}
 ) {
-    val previewWord = vocabularyWords.firstOrNull { it.id == "wapos" } ?: vocabularyWords.first()
-    val relatedWords = previewWord.relatedWordIds.mapNotNull { id ->
-        vocabularyWords.firstOrNull { it.id == id }
+    val previewCatalog = remember(vocabularyWords) {
+        buildMap {
+            seedVocabularyWords().forEach { put(it.id, it) }
+            vocabularyWords.forEach { put(it.id, it) }
+        }
     }
+    val relatedWords = previewWord.relatedWordIds.mapNotNull { id -> previewCatalog[id] }
     Box(modifier = modifier) {
         WordSemanticMapCard(
             word = previewWord,
@@ -1886,6 +2234,7 @@ fun SemanticMapPreviewCard(
             showSecondaryMeanings = inlineTranslations,
             primaryLanguage = primaryLanguage,
             title = "Semantic Map Preview",
+            highlighted = highlighted,
             expandedMapLayout = false,
             mapViewportMaxHeight = 260.dp,
             onWordClick = onWordClick
@@ -1987,14 +2336,16 @@ fun WordSemanticMapCard(
     showSecondaryMeanings: Boolean = true,
     primaryLanguage: DisplayLanguage,
     title: String = "Semantic Map",
+    highlighted: Boolean = false,
     expandedMapLayout: Boolean = false,
     mapViewportMaxHeight: Dp? = null,
     onWordClick: (String) -> Unit
 ) {
     val centerAccent = Accent
     val density = LocalDensity.current
+    val displayedRelatedWords = remember(relatedWords) { relatedWords.take(10) }
     val layout = rememberSemanticMapLayout(
-        relationCount = relatedWords.size,
+        relationCount = displayedRelatedWords.size,
         expandedMapLayout = expandedMapLayout,
         showSemanticRelationLabels = showSemanticRelationLabels
     )
@@ -2016,8 +2367,8 @@ fun WordSemanticMapCard(
             id to word.relatedSemanticRelationLabels.getOrElse(index) { "" }
         }.toMap()
     }
-    val relations = remember(word.id, relatedWords, layout, relationLabelByTargetId) {
-        relatedWords.mapIndexed { index, relatedWord ->
+    val relations = remember(word.id, displayedRelatedWords, layout, relationLabelByTargetId) {
+        displayedRelatedWords.mapIndexed { index, relatedWord ->
             val label = relationLabelByTargetId[relatedWord.id]
                 ?.takeIf { it.isNotBlank() }
                 ?: inferredSemanticRelationLabel(word, relatedWord)
@@ -2037,36 +2388,57 @@ fun WordSemanticMapCard(
         }
     }
 
+    val containerBrush = if (highlighted) rememberExpertModeBrush() else null
+    val outerContainerColor = if (highlighted) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surface
+    val innerContainerColor = MaterialTheme.colorScheme.background
+    val titleColor = if (highlighted) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.primary
+    val primaryTextColor = if (highlighted) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = if (highlighted) {
+        androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val zoomIconTint = if (highlighted) {
+        androidx.compose.ui.graphics.Color.White
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = outerContainerColor),
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier
+                .then(if (containerBrush != null) Modifier.background(containerBrush) else Modifier)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             val hubPrimary = word.primaryDisplayText(primaryLanguage)
             val hubSecondary = word.secondaryDisplayText(primaryLanguage)
 
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
+                color = titleColor
             )
             Text(
                 text = hubPrimary,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = primaryTextColor
             )
             if (showSecondaryMeanings) {
                 Text(
                     text = hubSecondary,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryTextColor
                 )
             }
             Text(
                 text = "Drag with your fingers to move the map. Tap a node to open it.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = secondaryTextColor
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2076,19 +2448,19 @@ fun WordSemanticMapCard(
                 Text(
                     text = "Zoom: ${(zoom * 100).toInt()}%",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryTextColor
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { zoom = (zoom * 0.85f).coerceAtLeast(minZoom) }) {
-                        Icon(Icons.Filled.Remove, contentDescription = "Zoom out")
+                        Icon(Icons.Filled.Remove, contentDescription = "Zoom out", tint = zoomIconTint)
                     }
                     IconButton(onClick = { zoom = (zoom * 1.15f).coerceAtMost(maxZoom) }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Zoom in")
+                        Icon(Icons.Filled.Add, contentDescription = "Zoom in", tint = zoomIconTint)
                     }
                 }
             }
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                colors = CardDefaults.cardColors(containerColor = innerContainerColor),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -2290,6 +2662,37 @@ private fun inferredSemanticRelationLabel(
     word: VocabularyWord,
     relatedWord: VocabularyWord
 ): String {
+    fun weatherRelationLabel(sourceId: String, targetId: String): String? {
+        val pair = setOf(sourceId, targetId)
+        return when {
+            pair == setOf("rain", "snow") -> "PRECIPITATION PEER"
+            pair == setOf("rain", "cloud") -> "RAIN SOURCE"
+            pair == setOf("rain", "wind") -> "STORM COMPANION"
+            pair == setOf("rain", "thunder") -> "STORM SIGNAL"
+            pair == setOf("rain", "cold") -> "TEMPERATURE LINK"
+            pair == setOf("snow", "wind") -> "BLIZZARD COMPANION"
+            pair == setOf("snow", "cold") -> "COLD-WEATHER PAIR"
+            pair == setOf("cloud", "wind") -> "SKY MOVEMENT LINK"
+            pair == setOf("cloud", "thunder") -> "STORM CLOUD LINK"
+            pair == setOf("wind", "thunder") -> "STORM BUILDUP"
+            else -> null
+        }
+    }
+
+    fun wordsRelationLabel(source: VocabularyWord, target: VocabularyWord): String {
+        val pair = setOf(source.id, target.id)
+        return when {
+            pair.intersect(setOf("yes", "no")).size == 2 -> "RESPONSE OPPOSITE"
+            pair.contains("hello") && pair.contains("thanks") -> "SOCIAL EXPRESSION"
+            pair.contains("hello") || pair.contains("thanks") -> "COMMON EXPRESSION"
+            source.partOfSpeech.equals("adjective", ignoreCase = true) ||
+                target.partOfSpeech.equals("adjective", ignoreCase = true) -> "DESCRIPTIVE TERM"
+            source.partOfSpeech.equals("phrase", ignoreCase = true) ||
+                target.partOfSpeech.equals("phrase", ignoreCase = true) -> "EVERYDAY PHRASE"
+            else -> "EVERYDAY EXPRESSION"
+        }
+    }
+
     if (word.partOfSpeech.equals("adjective", ignoreCase = true) &&
         relatedWord.partOfSpeech.equals("noun", ignoreCase = true)
     ) {
@@ -2313,16 +2716,24 @@ private fun inferredSemanticRelationLabel(
 
     if (word.subject == relatedWord.subject) {
         return when (word.subject) {
-            SubjectFilter.Animals -> "RELATED ANIMAL"
-            SubjectFilter.Body -> "BODY TERM"
-            SubjectFilter.Weather -> "WEATHER TERM"
-            SubjectFilter.Foods -> "FOOD TERM"
-            SubjectFilter.Lands -> "PLACE TERM"
-            SubjectFilter.Words, SubjectFilter.All -> "RELATED WORD"
+            SubjectFilter.Animals -> "ANIMAL PEER"
+            SubjectFilter.Body -> "BODY FEATURE"
+            SubjectFilter.Weather -> weatherRelationLabel(word.id, relatedWord.id) ?: "WEATHER PATTERN"
+            SubjectFilter.Foods -> "FOOD PAIRING"
+            SubjectFilter.Lands -> "PLACE LINK"
+            SubjectFilter.Words -> wordsRelationLabel(word, relatedWord)
+            SubjectFilter.All -> "MEANING LINK"
         }
     }
 
-    return "ASSOCIATED TERM"
+    return when {
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Animals, SubjectFilter.Lands) -> "HABITAT LINK"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Foods, SubjectFilter.Lands) -> "PLACE OF USE"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Foods, SubjectFilter.Weather) -> "SEASONAL LINK"
+        setOf(word.subject, relatedWord.subject) == setOf(SubjectFilter.Body, SubjectFilter.Words) -> "COMMON USAGE"
+        word.subject == SubjectFilter.Weather || relatedWord.subject == SubjectFilter.Weather -> "WEATHER LINK"
+        else -> "MEANING LINK"
+    }
 }
 
 @Composable
@@ -2510,6 +2921,8 @@ fun WordDetailsScreenPreview() {
             showMorphology = true,
             primaryLanguage = DisplayLanguage.English,
             inlineTranslations = true,
+            isMorphologyManagedGlobally = false,
+            onShowMorphologyChange = {},
             onBack = {},
             onWordClick = {},
             onConnectionsClick = {}
@@ -2609,6 +3022,8 @@ fun SemanticMapScreenPreview() {
             showSemanticRelationLabels = true,
             primaryLanguage = DisplayLanguage.English,
             inlineTranslations = true,
+            isSemanticRelationLabelsManagedGlobally = false,
+            onShowSemanticRelationLabelsChange = {},
             onBack = {},
             onWordClick = {}
         )
@@ -2625,7 +3040,8 @@ fun SettingsScreenPreview() {
             inlineTranslations = true,
             onInlineTranslationsChange = {},
             onOpenExpertMode = {},
-            onSeeRecentSearches = {}
+            onSeeRecentSearches = {},
+            onBack = {}
         )
     }
 }
