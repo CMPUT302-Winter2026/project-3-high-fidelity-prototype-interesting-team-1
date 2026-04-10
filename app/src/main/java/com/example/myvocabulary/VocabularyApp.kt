@@ -226,20 +226,24 @@ fun VocabularyApp(startupSnapshot: DictionaryStartupSnapshot? = null) {
             .ifEmpty { activeWords.take(3) }
     }
     val currentSearchKey = SearchCacheKey(searchQuery, searchSubject, searchWordType, searchSort)
-    val currentSearchWords = searchCache[currentSearchKey] ?: searchWords(
-        activeWords,
-        searchQuery,
-        searchSubject,
-        searchWordType,
-        searchSort
-    )
+    LaunchedEffect(activeWords) {
+        searchCache.clear()
+    }
+    val currentSearchWords by produceState(
+        initialValue = searchCache[currentSearchKey] ?: emptyList(),
+        currentSearchKey,
+        activeWords
+    ) {
+        searchCache[currentSearchKey]?.let { cached ->
+            value = cached
+            return@produceState
+        }
 
-    LaunchedEffect(currentSearchKey, activeWords) {
-        if (searchCache.containsKey(currentSearchKey)) return@LaunchedEffect
-        val results = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        val results = withContext(kotlinx.coroutines.Dispatchers.Default) {
             searchWords(activeWords, searchQuery, searchSubject, searchWordType, searchSort)
         }
         searchCache[currentSearchKey] = results
+        value = results
     }
 
     val shouldShowLoading = !bootstrapComplete
